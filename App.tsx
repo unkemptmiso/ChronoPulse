@@ -4,7 +4,6 @@ import {
   loadSessions, 
   saveSessions, 
   createSession, 
-  exportData, 
   exportToCSV, 
   loadCategories, 
   saveCategories,
@@ -12,47 +11,42 @@ import {
   saveTheme,
   clearAllData
 } from './services/storageService';
-import { analyzeProductivity } from './services/geminiService';
 import PulseTile from './components/PulseTile';
 import Timeline from './components/Timeline';
 import Guardrail from './components/Guardrail';
 import SettingsModal from './components/SettingsModal';
-import { Sparkles, X, Activity, Settings } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import StatisticsModal from './components/StatisticsModal';
+import { Activity, Settings, BarChart2 } from 'lucide-react';
+import { AnimatePresence } from 'framer-motion';
+import { format } from 'date-fns';
 
 const App: React.FC = () => {
-  const [sessions, setSessions] = useState<Session[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [analysisResult, setAnalysisResult] = useState<string | null>(null);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [theme, setTheme] = useState<'light' | 'dark'>('dark');
+  // Use lazy initialization to load data synchronously before first render
+  const [sessions, setSessions] = useState<Session[]>(() => loadSessions());
+  const [categories, setCategories] = useState<Category[]>(() => loadCategories());
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => loadTheme());
 
-  // Initialization
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isStatsOpen, setIsStatsOpen] = useState(false);
+
+  // Apply theme side-effects
   useEffect(() => {
-    setSessions(loadSessions());
-    setCategories(loadCategories());
-    
-    const savedTheme = loadTheme();
-    setTheme(savedTheme);
     document.documentElement.classList.remove('light', 'dark');
-    document.documentElement.classList.add(savedTheme);
-  }, []);
+    document.documentElement.classList.add(theme);
+    saveTheme(theme);
+  }, [theme]);
 
   // Persistence effects
   useEffect(() => {
-    if (sessions.length > 0) saveSessions(sessions);
+    saveSessions(sessions);
   }, [sessions]);
 
   useEffect(() => {
-    if (categories.length > 0) saveCategories(categories);
+    saveCategories(categories);
   }, [categories]);
 
   const handleThemeToggle = (newTheme: 'light' | 'dark') => {
     setTheme(newTheme);
-    saveTheme(newTheme);
-    document.documentElement.classList.remove('light', 'dark');
-    document.documentElement.classList.add(newTheme);
   };
 
   const activeSession = sessions.find(s => s.is_active);
@@ -93,35 +87,11 @@ const App: React.FC = () => {
 
   const handleClearData = () => {
     clearAllData();
+    // Reset state to defaults
     setSessions([]);
-    setCategories(loadCategories()); // Reset to default or empty
+    setCategories(loadCategories()); 
     setIsSettingsOpen(false);
   };
-
-  const handleAnalyze = async () => {
-    setIsAnalyzing(true);
-    const data = exportData(sessions);
-    const result = await analyzeProductivity(data);
-    setAnalysisResult(result);
-    setIsAnalyzing(false);
-  };
-
-  const totalDurationToday = sessions
-    .filter(s => {
-      const d = new Date(s.start_time);
-      const today = new Date();
-      return d.getDate() === today.getDate() && 
-             d.getMonth() === today.getMonth() && 
-             d.getFullYear() === today.getFullYear();
-    })
-    .reduce((acc, s) => {
-      const end = s.end_time ? new Date(s.end_time).getTime() : new Date().getTime();
-      const start = new Date(s.start_time).getTime();
-      return acc + (end - start);
-    }, 0);
-
-  const hours = Math.floor(totalDurationToday / 3600000);
-  const minutes = Math.floor((totalDurationToday % 3600000) / 60000);
 
   return (
     <div className="min-h-screen bg-background text-textMain pb-safe transition-colors duration-300">
@@ -132,31 +102,26 @@ const App: React.FC = () => {
             <Activity className="text-textMain" size={20} />
             ChronoPulse
           </h1>
-          <p className="text-textMuted text-xs mt-1 font-mono">
-            TODAY: <span className="text-textMain">{hours}h {minutes}m</span>
+          <p className="text-textMuted text-xs mt-1 font-mono uppercase tracking-wider">
+            {format(new Date(), 'EEEE, MMMM d')}
           </p>
         </div>
         
         <div className="flex gap-2">
+           <button 
+            onClick={() => setIsStatsOpen(true)}
+            className="bg-surface hover:bg-surfaceHighlight border border-border text-textMain rounded-full p-2 transition-colors"
+            aria-label="Statistics"
+          >
+            <BarChart2 size={20} />
+          </button>
+
            <button 
             onClick={() => setIsSettingsOpen(true)}
             className="bg-surface hover:bg-surfaceHighlight border border-border text-textMain rounded-full p-2 transition-colors"
             aria-label="Settings"
           >
             <Settings size={20} />
-          </button>
-          
-          <button 
-            onClick={handleAnalyze}
-            disabled={isAnalyzing}
-            className="bg-textMain text-surface hover:opacity-90 rounded-full p-2 transition-colors disabled:opacity-50"
-            aria-label="Analyze with Gemini"
-          >
-            {isAnalyzing ? (
-              <div className="w-5 h-5 border-2 border-surface/30 border-t-surface rounded-full animate-spin" />
-            ) : (
-              <Sparkles size={20} />
-            )}
           </button>
         </div>
       </header>
@@ -204,44 +169,13 @@ const App: React.FC = () => {
         onClearData={handleClearData}
       />
 
-      {/* Analysis Modal */}
-      <AnimatePresence>
-        {analysisResult && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-4"
-            onClick={() => setAnalysisResult(null)}
-          >
-            <motion.div 
-              initial={{ y: 100, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 100, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-surface border border-border rounded-2xl p-6 w-full max-w-md max-h-[80vh] overflow-y-auto shadow-2xl relative"
-            >
-              <button 
-                onClick={() => setAnalysisResult(null)}
-                className="absolute top-4 right-4 text-textMuted hover:text-textMain"
-              >
-                <X size={20} />
-              </button>
-              
-              <div className="flex items-center gap-2 mb-4 text-purple-500">
-                <Sparkles size={18} />
-                <h3 className="font-semibold text-sm uppercase tracking-wider">Gemini Analysis</h3>
-              </div>
-              
-              <div className="prose prose-sm max-w-none">
-                <div className="text-textMain whitespace-pre-line leading-relaxed">
-                  {analysisResult}
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Statistics & Analysis Modal */}
+      <StatisticsModal 
+        isOpen={isStatsOpen}
+        onClose={() => setIsStatsOpen(false)}
+        sessions={sessions}
+      />
+
     </div>
   );
 };
