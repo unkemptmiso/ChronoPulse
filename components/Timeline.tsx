@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Session } from '../types';
 import { format } from 'date-fns';
 import { Trash2 } from 'lucide-react';
@@ -10,125 +10,83 @@ interface TimelineProps {
   onDeleteSession: (id: string) => void;
 }
 
-const TimelineItem: React.FC<{ 
-  session: Session, 
-  onUpdate: (s: Session) => void,
-  onDelete: (id: string) => void 
-}> = ({ session, onUpdate, onDelete }) => {
-  const [isEditing, setIsEditing] = useState(false);
-  const duration = session.end_time 
-    ? Math.round((new Date(session.end_time).getTime() - new Date(session.start_time).getTime()) / 60000)
-    : 0;
-
-  const handleTimeChange = (type: 'start' | 'end', value: string) => {
-    // Value format from input type="datetime-local": YYYY-MM-DDTHH:mm
-    const date = new Date(value);
-    const updated = { ...session };
-    if (type === 'start') updated.start_time = date.toISOString();
-    if (type === 'end') updated.end_time = date.toISOString();
-    onUpdate(updated);
-  };
-
-  // Helper to format for input
-  const toInputFormat = (isoString: string | null) => {
-    if (!isoString) return '';
-    const d = new Date(isoString);
-    // Adjust for local timezone offset for the input
-    const pad = (n: number) => n < 10 ? '0' + n : n;
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  };
-
-  return (
-    <motion.div 
-      layout
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="border-l border-neutral-800 pl-4 py-4 relative group"
-    >
-      <div className="absolute -left-[5px] top-6 w-2.5 h-2.5 rounded-full bg-neutral-800 border-2 border-black group-hover:bg-white transition-colors" />
-      
-      <div className="flex justify-between items-start" onClick={() => setIsEditing(!isEditing)}>
-        <div>
-          <h4 className="text-white font-medium">{session.category}</h4>
-          <p className="text-neutral-500 text-xs mt-1">
-            {format(new Date(session.start_time), 'MMM d, HH:mm')} 
-            {session.end_time && ` - ${format(new Date(session.end_time), 'HH:mm')}`}
-          </p>
-        </div>
-        <div className="text-right">
-          <span className="text-white font-mono text-sm block">
-            {session.is_active ? 'ACTIVE' : `${Math.floor(duration / 60)}h ${duration % 60}m`}
-          </span>
-        </div>
-      </div>
-
-      <AnimatePresence>
-        {isEditing && !session.is_active && (
-          <motion.div 
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            className="mt-4 bg-neutral-900/50 rounded-lg p-3 space-y-3 overflow-hidden"
-          >
-            <div className="grid grid-cols-2 gap-2">
-              <div className="flex flex-col gap-1">
-                <label className="text-[10px] text-neutral-500 uppercase">Start</label>
-                <input 
-                  type="datetime-local" 
-                  value={toInputFormat(session.start_time)}
-                  onChange={(e) => handleTimeChange('start', e.target.value)}
-                  className="bg-black border border-neutral-800 rounded px-2 py-1 text-xs text-white"
-                />
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-[10px] text-neutral-500 uppercase">End</label>
-                <input 
-                  type="datetime-local" 
-                  value={toInputFormat(session.end_time)}
-                  onChange={(e) => handleTimeChange('end', e.target.value)}
-                  className="bg-black border border-neutral-800 rounded px-2 py-1 text-xs text-white"
-                />
-              </div>
-            </div>
-            <div className="flex justify-end pt-2 border-t border-neutral-800">
-              <button 
-                onClick={(e) => { e.stopPropagation(); onDelete(session.id); }}
-                className="text-danger text-xs flex items-center gap-1 hover:text-red-400"
-              >
-                <Trash2 size={12} /> Delete Entry
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.div>
-  );
-};
-
-const Timeline: React.FC<TimelineProps> = ({ sessions, onUpdateSession, onDeleteSession }) => {
-  // Sort by start time descending
+const Timeline: React.FC<TimelineProps> = ({ sessions, onDeleteSession }) => {
   const sortedSessions = [...sessions].sort((a, b) => 
     new Date(b.start_time).getTime() - new Date(a.start_time).getTime()
   );
 
   return (
-    <div className="space-y-1 pb-24">
-      <h3 className="text-neutral-500 text-xs font-mono uppercase tracking-widest mb-4 pl-4">Recent Timeline</h3>
-      {sortedSessions.length === 0 ? (
-        <div className="text-center py-10 text-neutral-700 text-sm italic">
-          No sessions recorded. <br/> Long press a tile to start.
-        </div>
-      ) : (
-        sortedSessions.map(session => (
-          <TimelineItem 
-            key={session.id} 
-            session={session} 
-            onUpdate={onUpdateSession}
-            onDelete={onDeleteSession}
-          />
-        ))
-      )}
+    <div className="w-full">
+      <h2 className="text-xs font-semibold text-textMuted uppercase tracking-wider mb-4 px-1">
+        Activity Log
+      </h2>
+      <div className="space-y-3">
+        <AnimatePresence initial={false} mode="popLayout">
+          {sortedSessions.length === 0 ? (
+            <motion.p 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="text-textMuted text-sm text-center py-8 italic"
+            >
+              No sessions yet. Start tracking to see your timeline.
+            </motion.p>
+          ) : (
+            sortedSessions.map((session) => (
+              <TimelineItem key={session.id} session={session} onDelete={onDeleteSession} />
+            ))
+          )}
+        </AnimatePresence>
+      </div>
     </div>
+  );
+};
+
+const TimelineItem: React.FC<{ session: Session; onDelete: (id: string) => void }> = ({ session, onDelete }) => {
+  const start = new Date(session.start_time);
+  const end = session.end_time ? new Date(session.end_time) : null;
+  
+  const duration = end 
+    ? Math.round((end.getTime() - start.getTime()) / 60000) 
+    : 0;
+
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, scale: 0.95, y: 10 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.2 } }}
+      className="bg-surface border border-border rounded-xl p-4 flex items-center justify-between group hover:border-textMuted transition-colors shadow-sm"
+    >
+      <div className="flex items-center gap-4 min-w-0">
+        <div className={`w-2 h-2 rounded-full shrink-0 ${session.is_active ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)] animate-pulse' : 'bg-textMuted/50'}`} />
+        
+        <div className="min-w-0">
+          <h3 className="text-textMain font-medium text-sm truncate">{session.category}</h3>
+          <div className="text-xs text-textMuted font-mono mt-0.5 flex items-center gap-2">
+            <span>{format(start, 'HH:mm')}</span>
+            <span className="text-textMuted/50">→</span>
+            <span className={session.is_active ? 'text-green-600 dark:text-green-400' : ''}>
+              {end ? format(end, 'HH:mm') : 'Now'}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-3 pl-4">
+        {end && (
+          <span className="text-xs font-mono text-textMuted bg-surfaceHighlight px-2 py-1 rounded-md">
+            {duration}m
+          </span>
+        )}
+        <button
+          onClick={() => onDelete(session.id)}
+          className="text-textMuted hover:text-danger hover:bg-danger/10 p-2 rounded-lg transition-all opacity-0 group-hover:opacity-100 focus:opacity-100"
+          aria-label="Delete session"
+        >
+          <Trash2 size={16} />
+        </button>
+      </div>
+    </motion.div>
   );
 };
 

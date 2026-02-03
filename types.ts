@@ -1,4 +1,4 @@
-export type Category = 'Work' | 'ELXR' | 'Coding' | 'BLANK' | 'Working out';
+export type Category = string;
 
 export interface Session {
   id: string;

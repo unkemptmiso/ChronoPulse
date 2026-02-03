@@ -14,12 +14,12 @@
         theme: {
           extend: {
             colors: {
-              background: '#000000',
-              surface: '#0a0a0a',
-              surfaceHighlight: '#1a1a1a',
-              primary: '#ffffff',
-              secondary: '#a3a3a3',
-              accent: '#3b82f6', // Subtle blue for active states if needed, mostly monochrome
+              background: 'var(--bg-color)',
+              surface: 'var(--surface-color)',
+              surfaceHighlight: 'var(--surface-highlight)',
+              textMain: 'var(--text-main)',
+              textMuted: 'var(--text-muted)',
+              border: 'var(--border-color)',
               danger: '#ef4444',
             },
             fontFamily: {
@@ -27,8 +27,8 @@
               mono: ['JetBrains Mono', 'monospace'],
             },
             boxShadow: {
-              'glow': '0 0 20px rgba(255, 255, 255, 0.15)',
-              'glow-active': '0 0 30px rgba(255, 255, 255, 0.25)',
+              'glow': '0 0 20px rgba(var(--glow-color), 0.15)',
+              'glow-active': '0 0 30px rgba(var(--glow-color), 0.25)',
             },
             animation: {
               'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
@@ -37,13 +37,33 @@
         },
       }
     </script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
     <style>
+      :root {
+        --bg-color: #f3f4f6;
+        --surface-color: #ffffff;
+        --surface-highlight: #e5e7eb;
+        --text-main: #111827;
+        --text-muted: #6b7280;
+        --border-color: #d1d5db;
+        --glow-color: 0, 0, 0;
+      }
+      
+      .dark {
+        --bg-color: #000000;
+        --surface-color: #0a0a0a;
+        --surface-highlight: #1a1a1a;
+        --text-main: #ffffff;
+        --text-muted: #a3a3a3;
+        --border-color: #262626;
+        --glow-color: 255, 255, 255;
+      }
+
       body {
-        background-color: #000000;
-        color: #ffffff;
+        background-color: var(--bg-color);
+        color: var(--text-main);
         -webkit-tap-highlight-color: transparent;
         overscroll-behavior-y: none;
+        transition: background-color 0.3s ease, color 0.3s ease;
       }
       /* Hide scrollbar for clean UI */
       .no-scrollbar::-webkit-scrollbar {
@@ -54,6 +74,7 @@
         scrollbar-width: none;
       }
     </style>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
   <script type="importmap">
 {
   "imports": {

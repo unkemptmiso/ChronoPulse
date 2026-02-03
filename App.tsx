@@ -1,29 +1,59 @@
 import React, { useState, useEffect } from 'react';
-import { CATEGORIES } from './constants';
 import { Session, Category } from './types';
-import { loadSessions, saveSessions, createSession, exportData } from './services/storageService';
+import { 
+  loadSessions, 
+  saveSessions, 
+  createSession, 
+  exportData, 
+  exportToCSV, 
+  loadCategories, 
+  saveCategories,
+  loadTheme,
+  saveTheme,
+  clearAllData
+} from './services/storageService';
 import { analyzeProductivity } from './services/geminiService';
 import PulseTile from './components/PulseTile';
 import Timeline from './components/Timeline';
 import Guardrail from './components/Guardrail';
-import { Sparkles, X, Activity } from 'lucide-react';
+import SettingsModal from './components/SettingsModal';
+import { Sparkles, X, Activity, Settings } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const App: React.FC = () => {
   const [sessions, setSessions] = useState<Session[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [theme, setTheme] = useState<'light' | 'dark'>('dark');
 
+  // Initialization
   useEffect(() => {
-    const loaded = loadSessions();
-    setSessions(loaded);
+    setSessions(loadSessions());
+    setCategories(loadCategories());
+    
+    const savedTheme = loadTheme();
+    setTheme(savedTheme);
+    document.documentElement.classList.remove('light', 'dark');
+    document.documentElement.classList.add(savedTheme);
   }, []);
 
+  // Persistence effects
   useEffect(() => {
-    if (sessions.length > 0) {
-      saveSessions(sessions);
-    }
+    if (sessions.length > 0) saveSessions(sessions);
   }, [sessions]);
+
+  useEffect(() => {
+    if (categories.length > 0) saveCategories(categories);
+  }, [categories]);
+
+  const handleThemeToggle = (newTheme: 'light' | 'dark') => {
+    setTheme(newTheme);
+    saveTheme(newTheme);
+    document.documentElement.classList.remove('light', 'dark');
+    document.documentElement.classList.add(newTheme);
+  };
 
   const activeSession = sessions.find(s => s.is_active);
 
@@ -61,6 +91,13 @@ const App: React.FC = () => {
     setSessions(prev => prev.filter(s => s.id !== id));
   };
 
+  const handleClearData = () => {
+    clearAllData();
+    setSessions([]);
+    setCategories(loadCategories()); // Reset to default or empty
+    setIsSettingsOpen(false);
+  };
+
   const handleAnalyze = async () => {
     setIsAnalyzing(true);
     const data = exportData(sessions);
@@ -87,29 +124,41 @@ const App: React.FC = () => {
   const minutes = Math.floor((totalDurationToday % 3600000) / 60000);
 
   return (
-    <div className="min-h-screen bg-black text-white pb-safe">
+    <div className="min-h-screen bg-background text-textMain pb-safe transition-colors duration-300">
       {/* Header */}
-      <header className="px-6 pt-12 pb-6 flex justify-between items-end sticky top-0 bg-black/80 backdrop-blur-md z-40 border-b border-white/5">
+      <header className="px-6 pt-12 pb-6 flex justify-between items-end sticky top-0 bg-background/80 backdrop-blur-md z-40 border-b border-border/50 transition-colors duration-300">
         <div>
-          <h1 className="text-xl font-bold tracking-tight flex items-center gap-2">
-            <Activity className="text-white" size={20} />
+          <h1 className="text-xl font-bold tracking-tight flex items-center gap-2 text-textMain">
+            <Activity className="text-textMain" size={20} />
             ChronoPulse
           </h1>
-          <p className="text-neutral-500 text-xs mt-1 font-mono">
-            TODAY: <span className="text-white">{hours}h {minutes}m</span>
+          <p className="text-textMuted text-xs mt-1 font-mono">
+            TODAY: <span className="text-textMain">{hours}h {minutes}m</span>
           </p>
         </div>
-        <button 
-          onClick={handleAnalyze}
-          disabled={isAnalyzing}
-          className="bg-white/10 hover:bg-white/20 text-white rounded-full p-2 transition-colors disabled:opacity-50"
-        >
-          {isAnalyzing ? (
-            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-          ) : (
-            <Sparkles size={20} />
-          )}
-        </button>
+        
+        <div className="flex gap-2">
+           <button 
+            onClick={() => setIsSettingsOpen(true)}
+            className="bg-surface hover:bg-surfaceHighlight border border-border text-textMain rounded-full p-2 transition-colors"
+            aria-label="Settings"
+          >
+            <Settings size={20} />
+          </button>
+          
+          <button 
+            onClick={handleAnalyze}
+            disabled={isAnalyzing}
+            className="bg-textMain text-surface hover:opacity-90 rounded-full p-2 transition-colors disabled:opacity-50"
+            aria-label="Analyze with Gemini"
+          >
+            {isAnalyzing ? (
+              <div className="w-5 h-5 border-2 border-surface/30 border-t-surface rounded-full animate-spin" />
+            ) : (
+              <Sparkles size={20} />
+            )}
+          </button>
+        </div>
       </header>
 
       <main className="p-4 max-w-md mx-auto space-y-8">
@@ -117,7 +166,7 @@ const App: React.FC = () => {
 
         {/* Tiles Grid */}
         <section className="grid grid-cols-2 gap-3">
-          {CATEGORIES.map(cat => (
+          {categories.map(cat => (
             <PulseTile 
               key={cat}
               category={cat}
@@ -126,6 +175,11 @@ const App: React.FC = () => {
               onStop={handleStopSession}
             />
           ))}
+          {categories.length === 0 && (
+             <div className="col-span-2 py-8 text-center text-textMuted text-sm border-2 border-dashed border-border rounded-xl">
+               No activities found.<br/>Add one in Settings.
+             </div>
+          )}
         </section>
 
         {/* Timeline */}
@@ -137,6 +191,18 @@ const App: React.FC = () => {
           />
         </section>
       </main>
+
+      {/* Settings Modal */}
+      <SettingsModal 
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        categories={categories}
+        onUpdateCategories={setCategories}
+        theme={theme}
+        onToggleTheme={handleThemeToggle}
+        onExportCSV={() => exportToCSV(sessions)}
+        onClearData={handleClearData}
+      />
 
       {/* Analysis Modal */}
       <AnimatePresence>
@@ -153,22 +219,22 @@ const App: React.FC = () => {
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: 100, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 w-full max-w-md max-h-[80vh] overflow-y-auto shadow-2xl relative"
+              className="bg-surface border border-border rounded-2xl p-6 w-full max-w-md max-h-[80vh] overflow-y-auto shadow-2xl relative"
             >
               <button 
                 onClick={() => setAnalysisResult(null)}
-                className="absolute top-4 right-4 text-neutral-400 hover:text-white"
+                className="absolute top-4 right-4 text-textMuted hover:text-textMain"
               >
                 <X size={20} />
               </button>
               
-              <div className="flex items-center gap-2 mb-4 text-purple-400">
+              <div className="flex items-center gap-2 mb-4 text-purple-500">
                 <Sparkles size={18} />
                 <h3 className="font-semibold text-sm uppercase tracking-wider">Gemini Analysis</h3>
               </div>
               
-              <div className="prose prose-invert prose-sm">
-                <div className="text-neutral-300 whitespace-pre-line leading-relaxed">
+              <div className="prose prose-sm max-w-none">
+                <div className="text-textMain whitespace-pre-line leading-relaxed">
                   {analysisResult}
                 </div>
               </div>
