@@ -1,0 +1,5 @@
+{
+  "name": "ChronoPulse",
+  "description": "A minimalist, high-performance Time Tracking PWA designed for the thumb-zone. Features tactile 'Tap & Pulse' interactions, offline-first architecture, and Gemini-powered time analysis.",
+  "requestFramePermissions": []
+}
