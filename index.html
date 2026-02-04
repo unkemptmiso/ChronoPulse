@@ -1,97 +1,25 @@
 <!DOCTYPE html>
 <html lang="en" class="dark">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <title>ChronoPulse</title>
-    <meta name="theme-color" content="#000000" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      tailwind.config = {
-        darkMode: 'class',
-        theme: {
-          extend: {
-            colors: {
-              background: 'var(--bg-color)',
-              surface: 'var(--surface-color)',
-              surfaceHighlight: 'var(--surface-highlight)',
-              textMain: 'var(--text-main)',
-              textMuted: 'var(--text-muted)',
-              border: 'var(--border-color)',
-              danger: '#ef4444',
-            },
-            fontFamily: {
-              sans: ['Inter', 'system-ui', 'sans-serif'],
-              mono: ['JetBrains Mono', 'monospace'],
-            },
-            boxShadow: {
-              'glow': '0 0 20px rgba(var(--glow-color), 0.15)',
-              'glow-active': '0 0 30px rgba(var(--glow-color), 0.25)',
-            },
-            animation: {
-              'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-            }
-          },
-        },
-      }
-    </script>
-    <style>
-      :root {
-        --bg-color: #f3f4f6;
-        --surface-color: #ffffff;
-        --surface-highlight: #e5e7eb;
-        --text-main: #111827;
-        --text-muted: #6b7280;
-        --border-color: #d1d5db;
-        --glow-color: 0, 0, 0;
-      }
-      
-      .dark {
-        --bg-color: #000000;
-        --surface-color: #0a0a0a;
-        --surface-highlight: #1a1a1a;
-        --text-main: #ffffff;
-        --text-muted: #a3a3a3;
-        --border-color: #262626;
-        --glow-color: 255, 255, 255;
-      }
 
-      body {
-        background-color: var(--bg-color);
-        color: var(--text-main);
-        -webkit-tap-highlight-color: transparent;
-        overscroll-behavior-y: none;
-        transition: background-color 0.3s ease, color 0.3s ease;
-      }
-      /* Hide scrollbar for clean UI */
-      .no-scrollbar::-webkit-scrollbar {
-        display: none;
-      }
-      .no-scrollbar {
-        -ms-overflow-style: none;
-        scrollbar-width: none;
-      }
-    </style>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
-  <script type="importmap">
-{
-  "imports": {
-    "@google/genai": "https://esm.sh/@google/genai@^1.39.0",
-    "react": "https://esm.sh/react@^19.2.4",
-    "react/": "https://esm.sh/react@^19.2.4/",
-    "lucide-react": "https://esm.sh/lucide-react@^0.563.0",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
-    "uuid": "https://esm.sh/uuid@^13.0.0",
-    "framer-motion": "https://esm.sh/framer-motion@^12.31.0",
-    "clsx": "https://esm.sh/clsx@^2.1.1",
-    "date-fns": "https://esm.sh/date-fns@^4.1.0"
-  }
-}
-</script>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>ChronoPulse</title>
+  <meta name="theme-color" content="#000000" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="description" content="ChronoPulse App">
+  <link rel="apple-touch-icon" href="/pwa-192x192.png">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400&display=swap"
+    rel="stylesheet">
+
 </head>
-  <body>
-    <div id="root"></div>
-  </body>
+
+<body>
+  <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+
 </html>

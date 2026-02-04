@@ -1,0 +1,57 @@
+@import "tailwindcss";
+
+@theme {
+  --color-background: var(--bg-color);
+  --color-surface: var(--surface-color);
+  --color-surfaceHighlight: var(--surface-highlight);
+  --color-textMain: var(--text-main);
+  --color-textMuted: var(--text-muted);
+  --color-border: var(--border-color);
+  --color-danger: #ef4444;
+
+  --font-sans: Inter, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+
+  --shadow-glow: 0 0 20px rgba(var(--glow-color), 0.15);
+  --shadow-glow-active: 0 0 30px rgba(var(--glow-color), 0.25);
+
+  --animate-pulse-slow: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+:root {
+  --bg-color: #f3f4f6;
+  --surface-color: #ffffff;
+  --surface-highlight: #e5e7eb;
+  --text-main: #111827;
+  --text-muted: #6b7280;
+  --border-color: #d1d5db;
+  --glow-color: 0, 0, 0;
+}
+
+.dark {
+  --bg-color: #000000;
+  --surface-color: #0a0a0a;
+  --surface-highlight: #1a1a1a;
+  --text-main: #ffffff;
+  --text-muted: #a3a3a3;
+  --border-color: #262626;
+  --glow-color: 255, 255, 255;
+}
+
+body {
+  background-color: var(--bg-color);
+  color: var(--text-main);
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Hide scrollbar for clean UI */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
