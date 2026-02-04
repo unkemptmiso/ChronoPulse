@@ -40,24 +40,45 @@ const App: React.FC = () => {
 
   // Auth & Initial Data Load
   useEffect(() => {
+    if (!supabase) {
+      setLoading(false);
+      return;
+    }
+
+    // Safety timeout: stop loading after 5 seconds if auth hangs
+    const safetyTimeout = setTimeout(() => {
+      setLoading((prev) => {
+        if (prev) console.warn("Auth check timed out, forcing load completion.");
+        return false;
+      });
+    }, 5000);
+
     // Check active session
-    supabase?.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      if (session?.user) {
+        loadData().finally(() => clearTimeout(safetyTimeout));
+      } else {
+        setLoading(false);
+        clearTimeout(safetyTimeout);
+      }
+    }).catch(err => {
+      console.error("Auth session check failed:", err);
+      setLoading(false);
+      clearTimeout(safetyTimeout);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
       if (session?.user) {
         loadData();
-      } else {
-        setLoading(false);
       }
     });
 
-    const { data: { subscription } } = supabase?.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        loadData();
-      }
-    }) || { data: { subscription: null } };
-
-    return () => subscription?.unsubscribe();
+    return () => {
+      subscription?.unsubscribe();
+      clearTimeout(safetyTimeout);
+    };
   }, []);
 
   const loadData = async () => {
@@ -152,14 +173,28 @@ const App: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center text-textMain">
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center text-textMain gap-4">
         <Activity className="animate-pulse w-8 h-8 text-primary" />
+        <p className="text-sm text-textMuted font-mono">Loading v2.0...</p>
       </div>
     );
   }
 
   if (!user && supabase) {
     return <Auth />;
+  }
+
+  if (!supabase) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center text-textMain p-6 text-center">
+        <Activity className="w-12 h-12 text-red-500 mb-4" />
+        <h2 className="text-xl font-bold mb-2">Configuration Error</h2>
+        <p className="text-textMuted max-w-sm">
+          Supabase credentials not found. The app cannot start without a valid database connection.
+          Please ensure <code>VITE_SUPABASE_URL</code> and <code>VITE_SUPABASE_ANON_KEY</code> are set in your environment.
+        </p>
+      </div>
+    );
   }
 
   return (
