@@ -175,7 +175,6 @@ const App: React.FC = () => {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center text-textMain gap-4">
         <Activity className="animate-pulse w-8 h-8 text-primary" />
-        <p className="text-sm text-textMuted font-mono">Loading v2.0...</p>
       </div>
     );
   }
@@ -189,7 +188,6 @@ const App: React.FC = () => {
       <div className="min-h-screen bg-background flex flex-col items-center justify-center text-textMain p-6 text-center">
         <Activity className="w-12 h-12 text-red-500 mb-4" />
         <h2 className="text-xl font-bold mb-2">Configuration Error</h2>
-        <p className="text-xs font-mono text-red-400 mb-4">Build: v3.0 (Hardcoded)</p>
         <p className="text-textMuted max-w-sm">
           Supabase credentials not found. The app cannot start without a valid database connection.
           Please ensure <code>VITE_SUPABASE_URL</code> and <code>VITE_SUPABASE_ANON_KEY</code> are set in your environment.
