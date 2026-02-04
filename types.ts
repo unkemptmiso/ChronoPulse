@@ -2,6 +2,7 @@ export type Category = string;
 
 export interface Session {
   id: string;
+  user_id?: string; // Supabase Owner UUID
   category: Category;
   start_time: string; // ISO string
   end_time: string | null; // ISO string or null if active

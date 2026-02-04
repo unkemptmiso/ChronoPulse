@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Session, Category } from './types';
-import { 
-  loadSessions, 
-  saveSessions, 
-  createSession, 
-  exportToCSV, 
-  loadCategories, 
+import {
+  loadSessions,
+  saveSession,
+  deleteSession,
+  createSession,
+  exportToCSV,
+  loadCategories,
   saveCategories,
   loadTheme,
   saveTheme,
@@ -19,15 +20,53 @@ import StatisticsModal from './components/StatisticsModal';
 import { Activity, Settings, BarChart2 } from 'lucide-react';
 import { AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
+import { supabase } from './services/supabaseClient';
+import { Auth } from './components/Auth';
 
 const App: React.FC = () => {
   // Use lazy initialization to load data synchronously before first render
-  const [sessions, setSessions] = useState<Session[]>(() => loadSessions());
+  // Initialize empty, then load
+  const [sessions, setSessions] = useState<Session[]>([]);
   const [categories, setCategories] = useState<Category[]>(() => loadCategories());
   const [theme, setTheme] = useState<'light' | 'dark'>(() => loadTheme());
+  const [finishLoading, setFinishLoading] = useState(false);
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isStatsOpen, setIsStatsOpen] = useState(false);
+
+  // Load initial data
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Auth & Initial Data Load
+  useEffect(() => {
+    // Check active session
+    supabase?.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      if (session?.user) {
+        loadData();
+      } else {
+        setLoading(false);
+      }
+    });
+
+    const { data: { subscription } } = supabase?.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      if (session?.user) {
+        loadData();
+      }
+    }) || { data: { subscription: null } };
+
+    return () => subscription?.unsubscribe();
+  }, []);
+
+  const loadData = async () => {
+    setLoading(true);
+    const loaded = await loadSessions();
+    setSessions(loaded);
+    setLoading(false);
+    setFinishLoading(true);
+  };
 
   // Apply theme side-effects
   useEffect(() => {
@@ -36,14 +75,12 @@ const App: React.FC = () => {
     saveTheme(theme);
   }, [theme]);
 
-  // Persistence effects
-  useEffect(() => {
-    saveSessions(sessions);
-  }, [sessions]);
-
+  // Remove the effect that saves ALL sessions on every change,
+  // because we now handle saves granularly in handlers to interact with DB efficiently.
   useEffect(() => {
     saveCategories(categories);
   }, [categories]);
+
 
   const handleThemeToggle = (newTheme: 'light' | 'dark') => {
     setTheme(newTheme);
@@ -57,41 +94,73 @@ const App: React.FC = () => {
 
     // If there is an active session, stop it first
     if (activeSession) {
-      updatedSessions = updatedSessions.map(s => 
-        s.id === activeSession.id 
-          ? { ...s, end_time: now, is_active: false } 
+      updatedSessions = updatedSessions.map(s =>
+        s.id === activeSession.id
+          ? { ...s, end_time: now, is_active: false }
           : s
       );
     }
 
     const newSession = createSession(category);
+    // Optimistically update UI
     setSessions([newSession, ...updatedSessions]);
+
+    // Persist changes
+    if (activeSession) {
+      // We need to save the stopped session
+      const stoppedSession = updatedSessions.find(s => s.id === activeSession.id);
+      if (stoppedSession) saveSession(stoppedSession);
+    }
+    saveSession(newSession);
   };
 
   const handleStopSession = (sessionId: string) => {
     const now = new Date().toISOString();
-    setSessions(prev => prev.map(s => 
-      s.id === sessionId 
-        ? { ...s, end_time: now, is_active: false } 
-        : s
+
+    // Find and clone the session to update
+    const sessionToStop = sessions.find(s => s.id === sessionId);
+    if (!sessionToStop) return;
+
+    const stoppedSession = { ...sessionToStop, end_time: now, is_active: false };
+
+    // Update local state first
+    setSessions(prev => prev.map(s =>
+      s.id === sessionId ? stoppedSession : s
     ));
+
+    // Persist
+    saveSession(stoppedSession);
   };
 
   const handleUpdateSession = (updatedSession: Session) => {
     setSessions(prev => prev.map(s => s.id === updatedSession.id ? updatedSession : s));
+    saveSession(updatedSession);
   };
 
   const handleDeleteSession = (id: string) => {
     setSessions(prev => prev.filter(s => s.id !== id));
+    deleteSession(id);
   };
 
   const handleClearData = () => {
     clearAllData();
     // Reset state to defaults
     setSessions([]);
-    setCategories(loadCategories()); 
+    setCategories(loadCategories());
     setIsSettingsOpen(false);
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center text-textMain">
+        <Activity className="animate-pulse w-8 h-8 text-primary" />
+      </div>
+    );
+  }
+
+  if (!user && supabase) {
+    return <Auth />;
+  }
 
   return (
     <div className="min-h-screen bg-background text-textMain pb-safe transition-colors duration-300">
@@ -106,9 +175,9 @@ const App: React.FC = () => {
             {format(new Date(), 'EEEE, MMMM d')}
           </p>
         </div>
-        
+
         <div className="flex gap-2">
-           <button 
+          <button
             onClick={() => setIsStatsOpen(true)}
             className="bg-surface hover:bg-surfaceHighlight border border-border text-textMain rounded-full p-2 transition-colors"
             aria-label="Statistics"
@@ -116,7 +185,7 @@ const App: React.FC = () => {
             <BarChart2 size={20} />
           </button>
 
-           <button 
+          <button
             onClick={() => setIsSettingsOpen(true)}
             className="bg-surface hover:bg-surfaceHighlight border border-border text-textMain rounded-full p-2 transition-colors"
             aria-label="Settings"
@@ -132,7 +201,7 @@ const App: React.FC = () => {
         {/* Tiles Grid */}
         <section className="grid grid-cols-2 gap-3">
           {categories.map(cat => (
-            <PulseTile 
+            <PulseTile
               key={cat}
               category={cat}
               activeSession={activeSession?.category === cat ? activeSession : undefined}
@@ -141,16 +210,16 @@ const App: React.FC = () => {
             />
           ))}
           {categories.length === 0 && (
-             <div className="col-span-2 py-8 text-center text-textMuted text-sm border-2 border-dashed border-border rounded-xl">
-               No activities found.<br/>Add one in Settings.
-             </div>
+            <div className="col-span-2 py-8 text-center text-textMuted text-sm border-2 border-dashed border-border rounded-xl">
+              No activities found.<br />Add one in Settings.
+            </div>
           )}
         </section>
 
         {/* Timeline */}
         <section>
-          <Timeline 
-            sessions={sessions} 
+          <Timeline
+            sessions={sessions}
             onUpdateSession={handleUpdateSession}
             onDeleteSession={handleDeleteSession}
           />
@@ -158,7 +227,7 @@ const App: React.FC = () => {
       </main>
 
       {/* Settings Modal */}
-      <SettingsModal 
+      <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         categories={categories}
@@ -170,7 +239,7 @@ const App: React.FC = () => {
       />
 
       {/* Statistics & Analysis Modal */}
-      <StatisticsModal 
+      <StatisticsModal
         isOpen={isStatsOpen}
         onClose={() => setIsStatsOpen(false)}
         sessions={sessions}
