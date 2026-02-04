@@ -122,7 +122,7 @@ const App: React.FC = () => {
       );
     }
 
-    const newSession = createSession(category);
+    const newSession = createSession(category, user?.id);
     // Optimistically update UI
     setSessions([newSession, ...updatedSessions]);
 

@@ -121,9 +121,10 @@ export const saveTheme = (theme: 'light' | 'dark') => {
   localStorage.setItem(THEME_KEY, theme);
 };
 
-export const createSession = (category: Category): Session => {
+export const createSession = (category: Category, userId?: string): Session => {
   return {
     id: uuidv4(),
+    user_id: userId,
     category,
     start_time: new Date().toISOString(),
     end_time: null,
