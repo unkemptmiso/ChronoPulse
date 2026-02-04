@@ -62,8 +62,12 @@ export const saveSession = async (session: Session) => {
       .from('sessions')
       .upsert(sessionToSave);
 
-    if (error) console.error("Supabase save error:", error);
+    if (error) {
+      console.error("Supabase save error:", error);
+      return { error };
+    }
   }
+  return { error: null };
 };
 
 export const deleteSession = async (sessionId: string) => {

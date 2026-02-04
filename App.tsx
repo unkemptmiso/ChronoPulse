@@ -37,6 +37,7 @@ const App: React.FC = () => {
   // Load initial data
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [lastError, setLastError] = useState<string | null>(null);
 
   // Auth & Initial Data Load
   useEffect(() => {
@@ -130,9 +131,15 @@ const App: React.FC = () => {
     if (activeSession) {
       // We need to save the stopped session
       const stoppedSession = updatedSessions.find(s => s.id === activeSession.id);
-      if (stoppedSession) saveSession(stoppedSession);
+      if (stoppedSession) {
+        saveSession(stoppedSession).then(({ error }) => {
+          if (error) setLastError(error.message);
+        });
+      }
     }
-    saveSession(newSession);
+    saveSession(newSession).then(({ error }) => {
+      if (error) setLastError(error.message);
+    });
   };
 
   const handleStopSession = (sessionId: string) => {
@@ -279,6 +286,17 @@ const App: React.FC = () => {
         sessions={sessions}
       />
 
+      {/* Debug Footer */}
+      {lastError && (
+        <div className="fixed bottom-0 left-0 right-0 bg-red-600 text-white p-4 text-xs font-mono z-50">
+          <p className="font-bold">Sync Error:</p>
+          <p>{lastError}</p>
+          <button onClick={() => setLastError(null)} className="mt-2 text-white/80 underline">Dismiss</button>
+        </div>
+      )}
+      <div className="fixed bottom-0 right-0 p-1 text-[10px] text-textMuted opacity-50 pointer-events-none">
+        User: {user?.id?.slice(0, 4)}...
+      </div>
     </div>
   );
 };
