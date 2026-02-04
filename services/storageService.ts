@@ -58,9 +58,12 @@ export const saveSession = async (session: Session) => {
 
   // 3. Sync to Supabase
   if (supabase && userId) {
+    // Remove local-only properties
+    const { synced, ...remoteSession } = sessionToSave;
+
     const { error } = await supabase
       .from('sessions')
-      .upsert(sessionToSave);
+      .upsert(remoteSession);
 
     if (error) {
       console.error("Supabase save error:", error);

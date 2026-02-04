@@ -204,8 +204,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background text-textMain pb-safe transition-colors duration-300 pt-8">
-      <DebugConsole user={user} lastError={lastError} />
+    <div className="min-h-screen bg-background text-textMain pb-safe transition-colors duration-300">
       {/* Header */}
       <header className="px-6 pt-12 pb-6 flex justify-between items-end sticky top-0 bg-background/80 backdrop-blur-md z-40 border-b border-border/50 transition-colors duration-300">
         <div>
@@ -298,26 +297,6 @@ const App: React.FC = () => {
       <div className="fixed bottom-0 right-0 p-1 text-[10px] text-textMuted opacity-50 pointer-events-none">
         User: {user?.id?.slice(0, 4)}...
       </div>
-    </div>
-  );
-};
-
-const DebugConsole = ({ user, lastError }: { user: any, lastError: string | null }) => {
-  return (
-    <div className="fixed top-0 left-0 right-0 bg-black/90 text-green-400 p-2 text-[10px] font-mono z-[100] border-b border-green-500/50 pointer-events-none">
-      <div className="flex justify-between max-w-md mx-auto">
-        <div>
-          <span className="text-white font-bold">DEBUG:</span> {user ? 'LOGGED IN' : 'NO USER'}
-        </div>
-        <div>
-          ID: {user?.id ? user.id.slice(0, 8) + '...' : 'NULL'}
-        </div>
-      </div>
-      {lastError && (
-        <div className="text-red-500 font-bold mt-1 bg-white/10 p-1">
-          ERROR: {lastError}
-        </div>
-      )}
     </div>
   );
 };
