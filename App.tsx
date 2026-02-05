@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Session, Category } from './types';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Session, Category, CategoryItem } from './types';
 import {
   loadSessions,
   saveSession,
@@ -17,9 +17,10 @@ import Timeline from './components/Timeline';
 import Guardrail from './components/Guardrail';
 import SettingsModal from './components/SettingsModal';
 import StatisticsModal from './components/StatisticsModal';
-import { Activity, Settings, BarChart2 } from 'lucide-react';
+import EditSessionModal from './components/EditSessionModal';
+import { Zap, Settings, BarChart2, Activity } from 'lucide-react';
 import { AnimatePresence } from 'framer-motion';
-import { format } from 'date-fns';
+import { format, isSameDay } from 'date-fns';
 import { supabase } from './services/supabaseClient';
 import { Auth } from './components/Auth';
 
@@ -27,12 +28,16 @@ const App: React.FC = () => {
   // Use lazy initialization to load data synchronously before first render
   // Initialize empty, then load
   const [sessions, setSessions] = useState<Session[]>([]);
-  const [categories, setCategories] = useState<Category[]>(() => loadCategories());
+  const [categories, setCategories] = useState<CategoryItem[]>(() => loadCategories());
   const [theme, setTheme] = useState<'light' | 'dark'>(() => loadTheme());
   const [finishLoading, setFinishLoading] = useState(false);
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isStatsOpen, setIsStatsOpen] = useState(false);
+
+  // Edit Modal State
+  const [editingSession, setEditingSession] = useState<Session | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   // Load initial data
   const [user, setUser] = useState<any>(null);
@@ -109,7 +114,18 @@ const App: React.FC = () => {
 
   const activeSession = sessions.find(s => s.is_active);
 
-  const handleStartSession = (category: Category) => {
+  // Filter sessions for timeline (Today ONLY, or active)
+  const timelineSessions = useMemo(() => {
+    const now = new Date();
+    return sessions.filter(s => {
+      if (s.is_active) return true;
+      // If session ended, check if it ended today
+      const end = new Date(s.end_time!);
+      return isSameDay(end, now);
+    });
+  }, [sessions]);
+
+  const handleStartSession = (categoryItem: CategoryItem) => {
     const now = new Date().toISOString();
     let updatedSessions = [...sessions];
 
@@ -122,7 +138,7 @@ const App: React.FC = () => {
       );
     }
 
-    const newSession = createSession(category, user?.id);
+    const newSession = createSession(categoryItem.name, user?.id);
     // Optimistically update UI
     setSessions([newSession, ...updatedSessions]);
 
@@ -171,6 +187,17 @@ const App: React.FC = () => {
     setIsSettingsOpen(false);
   };
 
+  // Edit Handlers
+  const openEditModal = (session: Session) => {
+    setEditingSession(session);
+    setIsEditModalOpen(true);
+  };
+
+  const closeEditModal = () => {
+    setIsEditModalOpen(false);
+    setEditingSession(null);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center text-textMain gap-4">
@@ -202,8 +229,8 @@ const App: React.FC = () => {
       <header className="px-6 pt-12 pb-6 flex justify-between items-end sticky top-0 bg-background/80 backdrop-blur-md z-40 border-b border-border/50 transition-colors duration-300">
         <div>
           <h1 className="text-xl font-bold tracking-tight flex items-center gap-2 text-textMain">
-            <Activity className="text-textMain" size={20} />
-            ChronoPulse
+            <Zap className="text-textMain" size={20} />
+            Chrono
           </h1>
           <p className="text-textMuted text-xs mt-1 font-mono uppercase tracking-wider">
             {format(new Date(), 'EEEE, MMMM d')}
@@ -236,10 +263,10 @@ const App: React.FC = () => {
         <section className="grid grid-cols-2 gap-3">
           {categories.map(cat => (
             <PulseTile
-              key={cat}
+              key={cat.id}
               category={cat}
-              activeSession={activeSession?.category === cat ? activeSession : undefined}
-              onStart={handleStartSession}
+              activeSession={activeSession?.category === cat.name ? activeSession : undefined}
+              onStart={() => handleStartSession(cat)}
               onStop={handleStopSession}
             />
           ))}
@@ -253,9 +280,10 @@ const App: React.FC = () => {
         {/* Timeline */}
         <section>
           <Timeline
-            sessions={sessions}
+            sessions={timelineSessions}
             onUpdateSession={handleUpdateSession}
             onDeleteSession={handleDeleteSession}
+            onEditSession={openEditModal}
           />
         </section>
       </main>
@@ -277,6 +305,14 @@ const App: React.FC = () => {
         isOpen={isStatsOpen}
         onClose={() => setIsStatsOpen(false)}
         sessions={sessions}
+      />
+
+      {/* Edit Session Modal */}
+      <EditSessionModal
+        isOpen={isEditModalOpen}
+        onClose={closeEditModal}
+        session={editingSession}
+        onSave={handleUpdateSession}
       />
 
     </div>

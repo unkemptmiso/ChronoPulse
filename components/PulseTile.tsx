@@ -1,35 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import { motion, useAnimation, PanInfo } from 'framer-motion';
-import { Category, Session } from '../types';
-import { Briefcase, Zap, Code, Circle, Dumbbell, ChevronUp, Activity, Hash, Coffee, Book, Music, Gamepad2 } from 'lucide-react';
+import { CategoryItem, Session } from '../types';
+import * as LucideIcons from 'lucide-react';
 import clsx from 'clsx';
+import { SUPPORTED_ICONS } from '../constants';
 
 interface PulseTileProps {
-  category: Category;
+  category: CategoryItem;
   activeSession?: Session;
-  onStart: (category: Category) => void;
+  onStart: (category: CategoryItem) => void;
   onStop: (sessionId: string) => void;
 }
-
-// Extended icon map to handle more defaults, but fallback to Activity
-const CategoryIcons: Record<string, React.ElementType> = {
-  'Work': Briefcase,
-  'ELXR': Zap,
-  'Coding': Code,
-  'BLANK': Circle,
-  'Working out': Dumbbell,
-  'Reading': Book,
-  'Break': Coffee,
-  'Music': Music,
-  'Gaming': Gamepad2,
-};
 
 const PulseTile: React.FC<PulseTileProps> = ({ category, activeSession, onStart, onStop }) => {
   const [elapsed, setElapsed] = useState<string>('00:00:00');
   const controls = useAnimation();
   const isActive = !!activeSession;
 
-  const Icon = CategoryIcons[category] || Activity;
+  // Dynamic Icon Lookup
+  // @ts-ignore - Dynamic lookup
+  const Icon = LucideIcons[category.icon] || LucideIcons.Activity;
 
   // Timer logic for active session
   useEffect(() => {
@@ -39,14 +29,14 @@ const PulseTile: React.FC<PulseTileProps> = ({ category, activeSession, onStart,
         const start = new Date(activeSession.start_time).getTime();
         const now = new Date().getTime();
         const diff = now - start;
-        
+
         const h = Math.floor(diff / 3600000);
         const m = Math.floor((diff % 3600000) / 60000);
         const s = Math.floor((diff % 60000) / 1000);
-        
+
         setElapsed(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`);
       };
-      
+
       updateTimer();
       interval = setInterval(updateTimer, 1000);
     } else {
@@ -96,8 +86,8 @@ const PulseTile: React.FC<PulseTileProps> = ({ category, activeSession, onStart,
         onDragEnd={handleDragEnd}
         className={clsx(
           "relative z-10 w-full h-full rounded-2xl border flex flex-col items-center justify-center transition-all duration-500 overflow-hidden cursor-pointer",
-          isActive 
-            ? "bg-surfaceHighlight border-textMain/20 shadow-glow" 
+          isActive
+            ? "bg-surfaceHighlight border-textMain/20 shadow-glow"
             : "bg-surface border-border hover:border-textMuted shadow-sm"
         )}
       >
@@ -108,17 +98,17 @@ const PulseTile: React.FC<PulseTileProps> = ({ category, activeSession, onStart,
 
         {/* Content */}
         <div className="flex flex-col items-center gap-2 z-20">
-          <Icon 
-            size={32} 
+          <Icon
+            size={32}
             className={clsx("transition-colors duration-300", isActive ? "text-textMain" : "text-textMuted")}
             strokeWidth={1.5}
           />
           <span className={clsx("text-sm font-medium tracking-wide", isActive ? "text-textMain" : "text-textMuted")}>
-            {category.toUpperCase()}
+            {category.name.toUpperCase()}
           </span>
-          
+
           {isActive && (
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               className="text-xs font-mono text-textMain/80 mt-1"
@@ -129,7 +119,7 @@ const PulseTile: React.FC<PulseTileProps> = ({ category, activeSession, onStart,
 
           {isActive && (
             <div className="absolute bottom-2 text-[10px] text-textMuted uppercase tracking-widest flex flex-col items-center gap-1 opacity-50">
-               <ChevronUp size={12} className="animate-bounce" />
+              <LucideIcons.ChevronUp size={12} className="animate-bounce" />
             </div>
           )}
         </div>

@@ -1,4 +1,4 @@
-import { Session, Category } from '../types';
+import { Session, Category, CategoryItem } from '../types';
 import { STORAGE_KEY, CATEGORIES as DEFAULT_CATEGORIES } from '../constants';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -98,16 +98,29 @@ export const saveSessionsLocal = (sessions: Session[]) => {
   }
 }
 
-export const loadCategories = (): Category[] => {
+export const loadCategories = (): CategoryItem[] => {
   try {
     const stored = localStorage.getItem(CATEGORIES_KEY);
-    return stored ? JSON.parse(stored) : DEFAULT_CATEGORIES;
+    if (!stored) return DEFAULT_CATEGORIES.map(c => ({ id: uuidv4(), name: c, icon: 'Activity' }));
+
+    const parsed = JSON.parse(stored);
+
+    // Migration: Handle legacy string[]
+    if (parsed.length > 0 && typeof parsed[0] === 'string') {
+      return (parsed as string[]).map(c => ({
+        id: uuidv4(),
+        name: c,
+        icon: 'Activity'
+      }));
+    }
+
+    return parsed as CategoryItem[];
   } catch (e) {
-    return DEFAULT_CATEGORIES;
+    return DEFAULT_CATEGORIES.map(c => ({ id: uuidv4(), name: c, icon: 'Activity' }));
   }
 };
 
-export const saveCategories = (categories: Category[]) => {
+export const saveCategories = (categories: CategoryItem[]) => {
   try {
     localStorage.setItem(CATEGORIES_KEY, JSON.stringify(categories));
   } catch (e) {

@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Moon, Sun, Download, Trash2, Plus, AlertCircle } from 'lucide-react';
-import { Category } from '../types';
+import { X, Moon, Sun, Download, Trash2, Plus, AlertCircle, Check } from 'lucide-react';
+import * as LucideIcons from 'lucide-react';
+import { CategoryItem } from '../types';
+import { SUPPORTED_ICONS } from '../constants';
+import { v4 as uuidv4 } from 'uuid';
 
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  categories: Category[];
-  onUpdateCategories: (newCategories: Category[]) => void;
+  categories: CategoryItem[];
+  onUpdateCategories: (newCategories: CategoryItem[]) => void;
   theme: 'light' | 'dark';
   onToggleTheme: (theme: 'light' | 'dark') => void;
   onExportCSV: () => void;
@@ -24,18 +27,36 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   onExportCSV,
   onClearData
 }) => {
-  const [newCategory, setNewCategory] = useState('');
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [selectedIcon, setSelectedIcon] = useState<string>('Activity');
+  const [isIconPickerOpen, setIsIconPickerOpen] = useState(false);
 
   const handleAddCategory = () => {
-    if (newCategory.trim() && !categories.includes(newCategory.trim())) {
-      onUpdateCategories([...categories, newCategory.trim()]);
-      setNewCategory('');
+    if (newCategoryName.trim()) {
+      // Check for duplicates
+      if (categories.some(c => c.name.toLowerCase() === newCategoryName.trim().toLowerCase())) {
+        alert("Category already exists!");
+        return;
+      }
+
+      const newItem: CategoryItem = {
+        id: uuidv4(),
+        name: newCategoryName.trim(),
+        icon: selectedIcon
+      };
+
+      onUpdateCategories([...categories, newItem]);
+      setNewCategoryName('');
+      setSelectedIcon('Activity');
+      setIsIconPickerOpen(false);
     }
   };
 
-  const handleRemoveCategory = (catToRemove: string) => {
-    onUpdateCategories(categories.filter(c => c !== catToRemove));
+  const handleRemoveCategory = (idToRemove: string) => {
+    onUpdateCategories(categories.filter(c => c.id !== idToRemove));
   };
+
+  const SelectedIconComp = (LucideIcons as any)[selectedIcon] || LucideIcons.Activity;
 
   return (
     <AnimatePresence>
@@ -63,28 +84,26 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
 
             <div className="overflow-y-auto p-5 space-y-8 no-scrollbar">
-              
+
               {/* Appearance */}
               <section>
                 <h3 className="text-xs font-semibold text-textMuted uppercase tracking-wider mb-3">Appearance</h3>
                 <div className="bg-background rounded-xl p-1 flex gap-1 border border-border">
                   <button
                     onClick={() => onToggleTheme('light')}
-                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all ${
-                      theme === 'light' 
-                        ? 'bg-surface text-textMain shadow-sm' 
-                        : 'text-textMuted hover:text-textMain'
-                    }`}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all ${theme === 'light'
+                      ? 'bg-surface text-textMain shadow-sm'
+                      : 'text-textMuted hover:text-textMain'
+                      }`}
                   >
                     <Sun size={16} /> Light
                   </button>
                   <button
                     onClick={() => onToggleTheme('dark')}
-                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all ${
-                      theme === 'dark' 
-                        ? 'bg-surface text-textMain shadow-sm' 
-                        : 'text-textMuted hover:text-textMain'
-                    }`}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all ${theme === 'dark'
+                      ? 'bg-surface text-textMain shadow-sm'
+                      : 'text-textMuted hover:text-textMain'
+                      }`}
                   >
                     <Moon size={16} /> Dark
                   </button>
@@ -95,35 +114,87 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
               <section>
                 <h3 className="text-xs font-semibold text-textMuted uppercase tracking-wider mb-3">Activities</h3>
                 <div className="space-y-2">
-                  {categories.map(cat => (
-                    <div key={cat} className="flex items-center justify-between p-3 bg-background rounded-xl border border-border/50 group">
-                      <span className="text-sm text-textMain font-medium">{cat}</span>
-                      <button 
-                        onClick={() => handleRemoveCategory(cat)}
-                        className="text-textMuted hover:text-danger p-1 rounded-md transition-colors"
+                  {categories.map(cat => {
+                    const CatIcon = (LucideIcons as any)[cat.icon] || LucideIcons.Activity;
+                    return (
+                      <div key={cat.id} className="flex items-center justify-between p-3 bg-background rounded-xl border border-border/50 group">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-surfaceHighlight rounded-lg text-textMain">
+                            <CatIcon size={18} />
+                          </div>
+                          <span className="text-sm text-textMain font-medium">{cat.name}</span>
+                        </div>
+                        <button
+                          onClick={() => handleRemoveCategory(cat.id)}
+                          className="text-textMuted hover:text-danger dark:hover:text-red-400 p-2 rounded-md transition-colors hover:bg-danger/10"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    );
+                  })}
+
+                  {/* Add New Category */}
+                  <div className="mt-4 p-3 border border-border border-dashed rounded-xl bg-surface/50">
+                    <div className="flex gap-2 mb-2">
+                      <button
+                        onClick={() => setIsIconPickerOpen(!isIconPickerOpen)}
+                        className="p-2.5 bg-surfaceHighlight border border-border rounded-xl text-textMain hover:bg-surfaceHighlight/80 transition-colors shrink-0"
                       >
-                        <Trash2 size={16} />
+                        <SelectedIconComp size={20} />
+                      </button>
+                      <input
+                        type="text"
+                        value={newCategoryName}
+                        onChange={(e) => setNewCategoryName(e.target.value)}
+                        placeholder="New activity name..."
+                        className="flex-1 bg-background border border-border rounded-xl px-4 py-2 text-sm text-textMain placeholder:text-textMuted/50 focus:outline-none focus:border-textMain/50"
+                        onKeyDown={(e) => e.key === 'Enter' && handleAddCategory()}
+                      />
+                      <button
+                        onClick={handleAddCategory}
+                        disabled={!newCategoryName.trim()}
+                        className="bg-textMain text-surface p-2 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 transition-opacity"
+                      >
+                        <Plus size={20} />
                       </button>
                     </div>
-                  ))}
-                  
-                  <div className="flex gap-2 mt-3">
-                    <input
-                      type="text"
-                      value={newCategory}
-                      onChange={(e) => setNewCategory(e.target.value)}
-                      placeholder="New activity name..."
-                      className="flex-1 bg-background border border-border rounded-xl px-4 py-2 text-sm text-textMain placeholder:text-textMuted/50 focus:outline-none focus:border-textMain/50"
-                      onKeyDown={(e) => e.key === 'Enter' && handleAddCategory()}
-                    />
-                    <button
-                      onClick={handleAddCategory}
-                      disabled={!newCategory.trim()}
-                      className="bg-textMain text-surface p-2 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 transition-opacity"
-                    >
-                      <Plus size={20} />
-                    </button>
+
+                    {/* Icon Picker */}
+                    <AnimatePresence>
+                      {isIconPickerOpen && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          className="overflow-hidden"
+                        >
+                          <div className="grid grid-cols-6 gap-2 pt-2 pb-1">
+                            {SUPPORTED_ICONS.map(iconName => {
+                              const Icon = (LucideIcons as any)[iconName];
+                              if (!Icon) return null;
+                              return (
+                                <button
+                                  key={iconName}
+                                  onClick={() => {
+                                    setSelectedIcon(iconName);
+                                    setIsIconPickerOpen(false);
+                                  }}
+                                  className={`p-2 rounded-lg flex items-center justify-center transition-all ${selectedIcon === iconName
+                                    ? 'bg-textMain text-surface scale-110 shadow-sm'
+                                    : 'bg-surface text-textMuted hover:bg-surfaceHighlight hover:text-textMain'
+                                    }`}
+                                >
+                                  <Icon size={18} />
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </div>
+
                 </div>
               </section>
 
@@ -131,17 +202,17 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
               <section>
                 <h3 className="text-xs font-semibold text-textMuted uppercase tracking-wider mb-3">Data</h3>
                 <div className="space-y-3">
-                  <button 
+                  <button
                     onClick={onExportCSV}
                     className="w-full flex items-center justify-center gap-2 p-3 rounded-xl border border-border text-textMain hover:bg-surfaceHighlight transition-colors text-sm font-medium"
                   >
                     <Download size={16} /> Export to CSV
                   </button>
-                  
+
                   <div className="pt-2">
-                     <button 
+                    <button
                       onClick={() => {
-                        if(window.confirm('Are you sure? This will delete all history and reset categories.')) {
+                        if (window.confirm('Are you sure? This will delete all history and reset categories.')) {
                           onClearData();
                         }
                       }}

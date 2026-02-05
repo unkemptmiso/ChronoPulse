@@ -1,4 +1,11 @@
-export type Category = string;
+export interface CategoryItem {
+  id: string;
+  name: string;
+  icon: string;
+  color?: string;
+}
+
+export type Category = string; // Legacy support for Session.category (name)
 
 export interface Session {
   id: string;

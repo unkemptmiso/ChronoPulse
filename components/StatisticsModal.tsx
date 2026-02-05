@@ -1,10 +1,16 @@
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Sparkles, Calendar, Clock, BarChart2, Hash, Trophy } from 'lucide-react';
-import { Session, Category } from '../types';
-import { format, isSameDay, isSameWeek, isSameMonth, isSameYear } from 'date-fns';
-import { analyzeProductivity } from '../services/geminiService';
-import { exportData } from '../services/storageService';
+import { X, BarChart2, Calendar } from 'lucide-react';
+import { Session } from '../types';
+import {
+  startOfDay, endOfDay,
+  startOfWeek, endOfWeek,
+  startOfMonth, endOfMonth,
+  startOfYear, endOfYear,
+  eachDayOfInterval, eachWeekOfInterval, eachMonthOfInterval,
+  format, isWithinInterval, subDays, subMonths
+} from 'date-fns';
+import { PieChart, StackedBarChart, ChartDataPoint, StackedBarDataPoint } from './Charts';
 
 interface StatisticsModalProps {
   isOpen: boolean;
@@ -12,82 +18,208 @@ interface StatisticsModalProps {
   sessions: Session[];
 }
 
-type TimeRange = 'day' | 'week' | 'month' | 'year' | 'all';
+type TimeRange = 'day' | 'week' | 'month' | 'year';
+
+const COLORS = [
+  '#6366f1', // Indigo
+  '#ec4899', // Pink
+  '#10b981', // Emerald
+  '#f59e0b', // Amber
+  '#3b82f6', // Blue
+  '#8b5cf6', // Violet
+  '#f43f5e', // Rose
+  '#14b8a6', // Teal
+  '#f97316', // Orange
+];
+
+const getColor = (str: string) => {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const index = Math.abs(hash % COLORS.length);
+  return COLORS[index];
+};
 
 const StatisticsModal: React.FC<StatisticsModalProps> = ({ isOpen, onClose, sessions }) => {
   const [range, setRange] = useState<TimeRange>('day');
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [analysisResult, setAnalysisResult] = useState<string | null>(null);
 
-  // Filter sessions based on range
-  const filteredSessions = useMemo(() => {
+  // Filter Data
+  const { filteredSessions, periodLabel } = useMemo(() => {
     const now = new Date();
-    return sessions.filter(s => {
-      const start = new Date(s.start_time);
-      switch (range) {
-        case 'day': return isSameDay(start, now);
-        case 'week': return isSameWeek(start, now, { weekStartsOn: 1 });
-        case 'month': return isSameMonth(start, now);
-        case 'year': return isSameYear(start, now);
-        case 'all': return true;
-        default: return true;
-      }
+    let start: Date, end: Date;
+    let label = '';
+
+    switch (range) {
+      case 'day':
+        start = startOfDay(now);
+        end = endOfDay(now);
+        label = format(now, 'MMMM d, yyyy');
+        break;
+      case 'week':
+        start = subDays(now, 6); // Last 7 days including today
+        end = endOfDay(now);
+        label = 'Last 7 Days';
+        break;
+      case 'month':
+        start = subDays(startOfWeek(now), 28); // Approx last 4 weeks
+        // Or strictly startOfMonth
+        // User request: "For the month category... cumulative time spent per category for each week of the month"
+        // Let's do current month roughly.
+        start = startOfMonth(now);
+        end = endOfMonth(now);
+        label = format(now, 'MMMM yyyy');
+        break;
+      case 'year':
+        start = startOfYear(now);
+        end = endOfYear(now);
+        label = format(now, 'yyyy');
+        break;
+    }
+
+    const filtered = sessions.filter(s => {
+      const sStart = new Date(s.start_time);
+      return isWithinInterval(sStart, { start, end });
     });
+
+    return { filteredSessions: filtered, periodLabel: label, start, end };
   }, [sessions, range]);
 
-  // Calculate Stats
-  const stats = useMemo(() => {
-    let totalMs = 0;
+  // Process Data for Charts
+  const chartData = useMemo(() => {
+    // 1. Pie Data (Aggregate)
     const catMap: Record<string, number> = {};
-    const count = filteredSessions.length;
-
     filteredSessions.forEach(s => {
       const start = new Date(s.start_time).getTime();
-      const end = s.end_time ? new Date(s.end_time).getTime() : new Date().getTime();
-      const duration = end - start;
-      
-      totalMs += duration;
-      catMap[s.category] = (catMap[s.category] || 0) + duration;
+      const end = s.end_time ? new Date(s.end_time).getTime() : new Date().getTime(); // Active counts till now
+      const minutes = Math.round((end - start) / 60000);
+      catMap[s.category] = (catMap[s.category] || 0) + minutes;
     });
 
-    const sortedCats = Object.entries(catMap)
-      .sort(([, a], [, b]) => b - a)
-      .map(([name, duration]) => ({ name, duration }));
+    const pieData: ChartDataPoint[] = Object.entries(catMap)
+      .map(([label, value]) => ({
+        label,
+        value,
+        color: getColor(label)
+      }))
+      .sort((a, b) => b.value - a.value);
 
-    return {
-      totalMs,
-      count,
-      sortedCats,
-      topCategory: sortedCats[0]?.name || '-',
-      avgSession: count > 0 ? totalMs / count : 0
-    };
-  }, [filteredSessions]);
+    // 2. Bar Data (Timeline)
+    let barData: StackedBarDataPoint[] = [];
+    const now = new Date();
 
-  const formatDuration = (ms: number) => {
-    const totalMinutes = Math.floor(ms / 60000);
-    const h = Math.floor(totalMinutes / 60);
-    const m = totalMinutes % 60;
-    if (h > 0) return `${h}h ${m}m`;
-    return `${m}m`;
-  };
+    if (range === 'week') {
+      // Daily breakdown
+      const days = eachDayOfInterval({ start: subDays(now, 6), end: now });
+      barData = days.map(day => {
+        const dayStart = startOfDay(day);
+        const dayEnd = endOfDay(day);
 
-  const handleAnalyze = async () => {
-    setIsAnalyzing(true);
-    setAnalysisResult(null);
-    // Export only the filtered view for context-aware analysis
-    const data = exportData(filteredSessions); 
-    const promptPrefix = `Analyze this ${range}ly productivity data: `;
-    const result = await analyzeProductivity(promptPrefix + data);
-    setAnalysisResult(result);
-    setIsAnalyzing(false);
-  };
+        // Find sessions in this day
+        // Note: Simple overlap logic. If session spans days, we roughly credit start time for now or strict split?
+        // Simple implementation: Credit based on start time day for simplicity, 
+        // to strictly split requires complex interval math. Given simple app, start time attribution is usually acceptable or splitting.
+        // Let's do splitting for accuracy as requested "tracked per day".
+
+        const segmentsMap: Record<string, number> = {};
+        let total = 0;
+
+        filteredSessions.forEach(s => {
+          const sStart = new Date(s.start_time);
+          let sEnd = s.end_time ? new Date(s.end_time) : new Date();
+
+          // Check overlap
+          const overlapStart = sStart < dayStart ? dayStart : sStart;
+          const overlapEnd = sEnd > dayEnd ? dayEnd : sEnd;
+
+          if (overlapStart < overlapEnd) {
+            const mins = Math.round((overlapEnd.getTime() - overlapStart.getTime()) / 60000);
+            segmentsMap[s.category] = (segmentsMap[s.category] || 0) + mins;
+            total += mins;
+          }
+        });
+
+        return {
+          label: format(day, 'EEE'), // Mon, Tue...
+          total,
+          segments: Object.entries(segmentsMap).map(([key, value]) => ({
+            key, value, color: getColor(key), label: key
+          }))
+        };
+      });
+    } else if (range === 'month') {
+      // Weekly breakdown
+      // "list the cumulative time spent per category for each week of the month"
+      const weeks = eachWeekOfInterval({ start: startOfMonth(now), end: endOfMonth(now) });
+      barData = weeks.map((weekStart, idx) => {
+        const weekEnd = endOfWeek(weekStart);
+        const segmentsMap: Record<string, number> = {};
+        let total = 0;
+
+        filteredSessions.forEach(s => {
+          const sStart = new Date(s.start_time);
+          let sEnd = s.end_time ? new Date(s.end_time) : new Date();
+
+          const overlapStart = sStart < weekStart ? weekStart : sStart;
+          const overlapEnd = sEnd > weekEnd ? weekEnd : sEnd;
+
+          if (overlapStart < overlapEnd) {
+            const mins = Math.round((overlapEnd.getTime() - overlapStart.getTime()) / 60000);
+            segmentsMap[s.category] = (segmentsMap[s.category] || 0) + mins;
+            total += mins;
+          }
+        });
+
+        return {
+          label: `W${idx + 1}`,
+          total,
+          segments: Object.entries(segmentsMap).map(([key, value]) => ({
+            key, value, color: getColor(key), label: key
+          }))
+        }
+      });
+
+    } else if (range === 'year') {
+      // Monthly breakdown
+      const months = eachMonthOfInterval({ start: startOfYear(now), end: endOfYear(now) });
+      barData = months.map(month => {
+        const monthStart = startOfMonth(month);
+        const monthEnd = endOfMonth(month);
+        const segmentsMap: Record<string, number> = {};
+        let total = 0;
+
+        filteredSessions.forEach(s => {
+          const sStart = new Date(s.start_time);
+          let sEnd = s.end_time ? new Date(s.end_time) : new Date();
+
+          const overlapStart = sStart < monthStart ? monthStart : sStart;
+          const overlapEnd = sEnd > monthEnd ? monthEnd : sEnd;
+
+          if (overlapStart < overlapEnd) {
+            const mins = Math.round((overlapEnd.getTime() - overlapStart.getTime()) / 60000);
+            segmentsMap[s.category] = (segmentsMap[s.category] || 0) + mins;
+            total += mins;
+          }
+        });
+
+        return {
+          label: format(month, 'MMM'),
+          total,
+          segments: Object.entries(segmentsMap).map(([key, value]) => ({
+            key, value, color: getColor(key), label: key
+          }))
+        }
+      });
+    }
+
+    return { pieData, barData };
+  }, [filteredSessions, range]);
 
   const tabs: { id: TimeRange; label: string }[] = [
-    { id: 'day', label: 'Today' },
+    { id: 'day', label: 'Day' },
     { id: 'week', label: 'Week' },
     { id: 'month', label: 'Month' },
     { id: 'year', label: 'Year' },
-    { id: 'all', label: 'All' },
   ];
 
   return (
@@ -106,7 +238,7 @@ const StatisticsModal: React.FC<StatisticsModalProps> = ({ isOpen, onClose, sess
             exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
             onClick={(e) => e.stopPropagation()}
-            className="bg-surface w-full max-w-lg h-[90vh] sm:h-auto sm:max-h-[85vh] sm:rounded-2xl rounded-t-2xl flex flex-col shadow-2xl overflow-hidden"
+            className="bg-surface w-full max-w-lg h-[90vh] sm:h-auto sm:max-h-[90vh] sm:rounded-2xl rounded-t-2xl flex flex-col shadow-2xl overflow-hidden"
           >
             {/* Header */}
             <div className="p-5 border-b border-border flex justify-between items-center bg-surfaceHighlight/30">
@@ -123,117 +255,53 @@ const StatisticsModal: React.FC<StatisticsModalProps> = ({ isOpen, onClose, sess
               {tabs.map(tab => (
                 <button
                   key={tab.id}
-                  onClick={() => {
-                    setRange(tab.id);
-                    setAnalysisResult(null); // Clear analysis on tab switch
-                  }}
-                  className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${
-                    range === tab.id 
-                      ? 'bg-textMain text-surface' 
+                  onClick={() => setRange(tab.id)}
+                  className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${range === tab.id
+                      ? 'bg-textMain text-surface'
                       : 'text-textMuted hover:bg-surfaceHighlight'
-                  }`}
+                    }`}
                 >
                   {tab.label}
                 </button>
               ))}
             </div>
 
-            <div className="overflow-y-auto p-5 space-y-6 flex-1">
-              
-              {/* Summary Cards */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-surfaceHighlight/50 p-3 rounded-xl border border-border/50">
-                  <div className="flex items-center gap-2 text-textMuted mb-1 text-xs uppercase tracking-wider">
-                    <Clock size={12} /> Total Time
-                  </div>
-                  <div className="text-xl font-bold text-textMain">{formatDuration(stats.totalMs)}</div>
-                </div>
-                <div className="bg-surfaceHighlight/50 p-3 rounded-xl border border-border/50">
-                  <div className="flex items-center gap-2 text-textMuted mb-1 text-xs uppercase tracking-wider">
-                    <Trophy size={12} /> Top Focus
-                  </div>
-                  <div className="text-xl font-bold text-textMain truncate">{stats.topCategory}</div>
-                </div>
-                <div className="bg-surfaceHighlight/50 p-3 rounded-xl border border-border/50">
-                  <div className="flex items-center gap-2 text-textMuted mb-1 text-xs uppercase tracking-wider">
-                    <Hash size={12} /> Sessions
-                  </div>
-                  <div className="text-xl font-bold text-textMain">{stats.count}</div>
-                </div>
-                <div className="bg-surfaceHighlight/50 p-3 rounded-xl border border-border/50">
-                  <div className="flex items-center gap-2 text-textMuted mb-1 text-xs uppercase tracking-wider">
-                    <Calendar size={12} /> Avg Session
-                  </div>
-                  <div className="text-xl font-bold text-textMain">{formatDuration(stats.avgSession)}</div>
+            <div className="overflow-y-auto p-5 space-y-8 flex-1">
+
+              <div className="text-center">
+                <p className="text-xs text-textMuted uppercase tracking-wider">{periodLabel}</p>
+              </div>
+
+              {/* Pie Chart Section */}
+              <div className="flex flex-col items-center">
+                <h3 className="text-sm font-semibold text-textMain mb-4">Distribution</h3>
+                {chartData.pieData.length > 0 ? (
+                  <PieChart data={chartData.pieData} size={220} />
+                ) : (
+                  <p className="text-textMuted text-sm italic py-10">No activities recorded.</p>
+                )}
+
+                {/* Legend */}
+                <div className="flex flex-wrap justify-center gap-3 mt-6">
+                  {chartData.pieData.map(d => (
+                    <div key={d.label} className="flex items-center gap-1.5 bg-surfaceHighlight/50 px-2 py-1 rounded-lg border border-border/50">
+                      <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: d.color }} />
+                      <span className="text-xs text-textMain font-medium">{d.label}</span>
+                      <span className="text-[10px] text-textMuted ml-1">{Math.round(d.value)}m</span>
+                    </div>
+                  ))}
                 </div>
               </div>
 
-              {/* Breakdown Chart */}
-              <div>
-                <h3 className="text-xs font-semibold text-textMuted uppercase tracking-wider mb-3">Breakdown</h3>
-                {stats.sortedCats.length === 0 ? (
-                  <p className="text-textMuted text-sm text-center py-4 italic">No data for this period.</p>
-                ) : (
-                  <div className="space-y-3">
-                    {stats.sortedCats.map((cat, idx) => {
-                      const percentage = Math.round((cat.duration / stats.totalMs) * 100);
-                      return (
-                        <div key={cat.name} className="group">
-                          <div className="flex justify-between text-sm mb-1">
-                            <span className="font-medium text-textMain">{cat.name}</span>
-                            <span className="text-textMuted font-mono text-xs">{formatDuration(cat.duration)} ({percentage}%)</span>
-                          </div>
-                          <div className="h-2 w-full bg-surfaceHighlight rounded-full overflow-hidden">
-                            <motion.div 
-                              initial={{ width: 0 }}
-                              animate={{ width: `${percentage}%` }}
-                              transition={{ duration: 0.5, delay: idx * 0.05 }}
-                              className={`h-full rounded-full ${idx === 0 ? 'bg-textMain' : 'bg-textMuted'}`}
-                            />
-                          </div>
-                        </div>
-                      );
-                    })}
+              {/* Bar Chart Section (Week/Month/Year only) */}
+              {range !== 'day' && chartData.barData.length > 0 && (
+                <div className="border-t border-border pt-6">
+                  <h3 className="text-sm font-semibold text-textMain mb-6 text-center">Trend</h3>
+                  <div className="px-2">
+                    <StackedBarChart data={chartData.barData} height={180} />
                   </div>
-                )}
-              </div>
-
-              {/* Gemini Section */}
-              <div className="pt-4 border-t border-border">
-                {!analysisResult ? (
-                   <button
-                   onClick={handleAnalyze}
-                   disabled={isAnalyzing || stats.count === 0}
-                   className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white p-3 rounded-xl flex items-center justify-center gap-2 transition-all disabled:opacity-50 shadow-md"
-                 >
-                   {isAnalyzing ? (
-                     <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                   ) : (
-                     <>
-                       <Sparkles size={18} />
-                       Generate AI Insight
-                     </>
-                   )}
-                 </button>
-                ) : (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="bg-surfaceHighlight/30 border border-purple-500/20 rounded-xl p-4"
-                  >
-                     <div className="flex items-center justify-between mb-3 text-purple-500">
-                      <div className="flex items-center gap-2">
-                        <Sparkles size={18} />
-                        <h3 className="font-semibold text-sm uppercase tracking-wider">Gemini Insight</h3>
-                      </div>
-                      <button onClick={() => setAnalysisResult(null)} className="text-xs hover:underline opacity-70">Reset</button>
-                    </div>
-                    <div className="prose prose-sm max-w-none text-textMain text-sm whitespace-pre-line leading-relaxed opacity-90">
-                      {analysisResult}
-                    </div>
-                  </motion.div>
-                )}
-              </div>
+                </div>
+              )}
 
             </div>
           </motion.div>
