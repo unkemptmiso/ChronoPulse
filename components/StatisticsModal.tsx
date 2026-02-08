@@ -11,6 +11,15 @@ import {
   format, isWithinInterval, subDays, subMonths
 } from 'date-fns';
 import { PieChart, StackedBarChart, ChartDataPoint, StackedBarDataPoint } from './Charts';
+import { intervalToDuration } from 'date-fns';
+
+const formatDuration = (totalMinutes: number) => {
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = Math.round(totalMinutes % 60);
+  if (hours === 0) return `${minutes}m`;
+  return `${hours}h ${minutes}m`;
+};
+
 
 interface StatisticsModalProps {
   isOpen: boolean;
@@ -45,7 +54,7 @@ const StatisticsModal: React.FC<StatisticsModalProps> = ({ isOpen, onClose, sess
   const [range, setRange] = useState<TimeRange>('day');
 
   // Filter Data
-  const { filteredSessions, periodLabel } = useMemo(() => {
+  const { filteredSessions, periodLabel, periodStart, periodEnd } = useMemo(() => {
     const now = new Date();
     let start: Date, end: Date;
     let label = '';
@@ -57,15 +66,11 @@ const StatisticsModal: React.FC<StatisticsModalProps> = ({ isOpen, onClose, sess
         label = format(now, 'MMMM d, yyyy');
         break;
       case 'week':
-        start = subDays(now, 6); // Last 7 days including today
-        end = endOfDay(now);
-        label = 'Last 7 Days';
+        start = startOfWeek(now, { weekStartsOn: 1 }); // Monday start
+        end = endOfWeek(now, { weekStartsOn: 1 });
+        label = 'This Week';
         break;
       case 'month':
-        start = subDays(startOfWeek(now), 28); // Approx last 4 weeks
-        // Or strictly startOfMonth
-        // User request: "For the month category... cumulative time spent per category for each week of the month"
-        // Let's do current month roughly.
         start = startOfMonth(now);
         end = endOfMonth(now);
         label = format(now, 'MMMM yyyy');
@@ -79,7 +84,9 @@ const StatisticsModal: React.FC<StatisticsModalProps> = ({ isOpen, onClose, sess
 
     const filtered = sessions.filter(s => {
       const sStart = new Date(s.start_time);
-      return isWithinInterval(sStart, { start, end });
+      const sEnd = s.end_time ? new Date(s.end_time) : new Date();
+      // Check for overlap
+      return sStart < end && sEnd > start;
     });
 
     return { filteredSessions: filtered, periodLabel: label, start, end };
@@ -89,11 +96,20 @@ const StatisticsModal: React.FC<StatisticsModalProps> = ({ isOpen, onClose, sess
   const chartData = useMemo(() => {
     // 1. Pie Data (Aggregate)
     const catMap: Record<string, number> = {};
+    const { start: rangeStart, end: rangeEnd } = { start: periodStart, end: periodEnd };
+
     filteredSessions.forEach(s => {
-      const start = new Date(s.start_time).getTime();
-      const end = s.end_time ? new Date(s.end_time).getTime() : new Date().getTime(); // Active counts till now
-      const minutes = Math.round((end - start) / 60000);
-      catMap[s.category] = (catMap[s.category] || 0) + minutes;
+      const sStart = new Date(s.start_time);
+      let sEnd = s.end_time ? new Date(s.end_time) : new Date();
+
+      // Clamp to range
+      const effectiveStart = sStart < rangeStart ? rangeStart : sStart;
+      const effectiveEnd = sEnd > rangeEnd ? rangeEnd : sEnd;
+
+      if (effectiveStart < effectiveEnd) {
+        const minutes = (effectiveEnd.getTime() - effectiveStart.getTime()) / 60000;
+        catMap[s.category] = (catMap[s.category] || 0) + minutes;
+      }
     });
 
     const pieData: ChartDataPoint[] = Object.entries(catMap)
@@ -109,8 +125,8 @@ const StatisticsModal: React.FC<StatisticsModalProps> = ({ isOpen, onClose, sess
     const now = new Date();
 
     if (range === 'week') {
-      // Daily breakdown
-      const days = eachDayOfInterval({ start: subDays(now, 6), end: now });
+      // Daily breakdown (Mon-Sun)
+      const days = eachDayOfInterval({ start: periodStart, end: periodEnd });
       barData = days.map(day => {
         const dayStart = startOfDay(day);
         const dayEnd = endOfDay(day);
@@ -149,10 +165,9 @@ const StatisticsModal: React.FC<StatisticsModalProps> = ({ isOpen, onClose, sess
       });
     } else if (range === 'month') {
       // Weekly breakdown
-      // "list the cumulative time spent per category for each week of the month"
-      const weeks = eachWeekOfInterval({ start: startOfMonth(now), end: endOfMonth(now) });
+      const weeks = eachWeekOfInterval({ start: periodStart, end: periodEnd }, { weekStartsOn: 1 });
       barData = weeks.map((weekStart, idx) => {
-        const weekEnd = endOfWeek(weekStart);
+        const weekEnd = endOfWeek(weekStart, { weekStartsOn: 1 });
         const segmentsMap: Record<string, number> = {};
         let total = 0;
 
@@ -213,7 +228,7 @@ const StatisticsModal: React.FC<StatisticsModalProps> = ({ isOpen, onClose, sess
     }
 
     return { pieData, barData };
-  }, [filteredSessions, range]);
+  }, [filteredSessions, range, periodStart, periodEnd]);
 
   const tabs: { id: TimeRange; label: string }[] = [
     { id: 'day', label: 'Day' },
@@ -257,8 +272,8 @@ const StatisticsModal: React.FC<StatisticsModalProps> = ({ isOpen, onClose, sess
                   key={tab.id}
                   onClick={() => setRange(tab.id)}
                   className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${range === tab.id
-                      ? 'bg-textMain text-surface'
-                      : 'text-textMuted hover:bg-surfaceHighlight'
+                    ? 'bg-textMain text-surface'
+                    : 'text-textMuted hover:bg-surfaceHighlight'
                     }`}
                 >
                   {tab.label}
@@ -276,7 +291,7 @@ const StatisticsModal: React.FC<StatisticsModalProps> = ({ isOpen, onClose, sess
               <div className="flex flex-col items-center">
                 <h3 className="text-sm font-semibold text-textMain mb-4">Distribution</h3>
                 {chartData.pieData.length > 0 ? (
-                  <PieChart data={chartData.pieData} size={220} />
+                  <PieChart data={chartData.pieData} size={220} valueFormatter={formatDuration} />
                 ) : (
                   <p className="text-textMuted text-sm italic py-10">No activities recorded.</p>
                 )}
@@ -287,7 +302,7 @@ const StatisticsModal: React.FC<StatisticsModalProps> = ({ isOpen, onClose, sess
                     <div key={d.label} className="flex items-center gap-1.5 bg-surfaceHighlight/50 px-2 py-1 rounded-lg border border-border/50">
                       <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: d.color }} />
                       <span className="text-xs text-textMain font-medium">{d.label}</span>
-                      <span className="text-[10px] text-textMuted ml-1">{Math.round(d.value)}m</span>
+                      <span className="text-[10px] text-textMuted ml-1">{formatDuration(d.value)}</span>
                     </div>
                   ))}
                 </div>
@@ -298,7 +313,7 @@ const StatisticsModal: React.FC<StatisticsModalProps> = ({ isOpen, onClose, sess
                 <div className="border-t border-border pt-6">
                   <h3 className="text-sm font-semibold text-textMain mb-6 text-center">Trend</h3>
                   <div className="px-2">
-                    <StackedBarChart data={chartData.barData} height={180} />
+                    <StackedBarChart data={chartData.barData} height={180} valueFormatter={formatDuration} />
                   </div>
                 </div>
               )}

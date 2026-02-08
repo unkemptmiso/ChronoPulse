@@ -10,8 +10,20 @@ const THEME_KEY = 'chronopulse_theme_v1';
 
 // --- Sessions ---
 
+// 1. Local (Sync)
+export const loadSessionsLocal = (): Session[] => {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch (e) {
+    console.error("Failed to load sessions locally", e);
+    return [];
+  }
+};
+
+// 2. Remote (Async) - now syncs remote changes back to local
 export const loadSessions = async (): Promise<Session[]> => {
-  // 1. Try Supabase first (if configured)
+  // Try Supabase first (if configured)
   if (supabase) {
     const { data, error } = await supabase
       .from('sessions')
@@ -27,14 +39,8 @@ export const loadSessions = async (): Promise<Session[]> => {
     }
   }
 
-  // 2. Fallback to LocalStorage
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    return stored ? JSON.parse(stored) : [];
-  } catch (e) {
-    console.error("Failed to load sessions locally", e);
-    return [];
-  }
+  // Fallback
+  return loadSessionsLocal();
 };
 
 export const saveSession = async (session: Session) => {

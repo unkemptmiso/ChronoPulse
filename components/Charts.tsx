@@ -27,10 +27,11 @@ const getCoordinatesForPercent = (percent: number) => {
 };
 
 // --- Pie Chart ---
-export const PieChart: React.FC<{ data: ChartDataPoint[]; size?: number; donut?: boolean }> = ({
+export const PieChart: React.FC<{ data: ChartDataPoint[]; size?: number; donut?: boolean; valueFormatter?: (v: number) => string }> = ({
     data,
     size = 200,
-    donut = true
+    donut = true,
+    valueFormatter = (v) => `${Math.round(v)}`
 }) => {
     const total = data.reduce((acc, curr) => acc + curr.value, 0);
 
@@ -97,9 +98,9 @@ export const PieChart: React.FC<{ data: ChartDataPoint[]; size?: number; donut?:
                 >
                     {/* Slot for center content */}
                     <span className="text-xs text-textMuted uppercase tracking-wider">Total</span>
+                    {/* Use formatter */}
                     <span className="text-xl font-bold text-textMain">
-                        {/* Simple duration formatting can go here if passed via props, but generic for now */}
-                        {Math.round(total / 60)}m
+                        {valueFormatter(total)}
                     </span>
                 </div>
             )}
@@ -107,10 +108,12 @@ export const PieChart: React.FC<{ data: ChartDataPoint[]; size?: number; donut?:
     );
 };
 
+
 // --- Stacked Bar Chart ---
-export const StackedBarChart: React.FC<{ data: StackedBarDataPoint[]; height?: number }> = ({
+export const StackedBarChart: React.FC<{ data: StackedBarDataPoint[]; height?: number; valueFormatter?: (v: number) => string }> = ({
     data,
-    height = 200
+    height = 200,
+    valueFormatter = (v) => `${Math.round(v)}`
 }) => {
     const maxTotal = Math.max(...data.map(d => d.total), 1); // Avoid div/0
 
@@ -122,7 +125,7 @@ export const StackedBarChart: React.FC<{ data: StackedBarDataPoint[]; height?: n
                 return (
                     <div key={i} className="flex-1 flex flex-col items-center h-full justify-end group">
                         {/* Tooltip placeholder (simple browser title for now, could be advanced custom tooltip) */}
-                        <div className="relative w-full rounded-t-lg overflow-hidden flex flex-col-reverse justify-start transition-transform hover:scale-105" title={`${col.label}: ${Math.round(col.total)}m`} style={{ height: `${heightPercent}%` }}>
+                        <div className="relative w-full rounded-t-lg overflow-hidden flex flex-col-reverse justify-start transition-transform hover:scale-105" title={`${col.label}: ${valueFormatter(col.total)}`} style={{ height: `${heightPercent}%` }}>
                             {col.segments.map((seg, idx) => {
                                 const segHeightPercent = (seg.value / col.total) * 100;
                                 return (

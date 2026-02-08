@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Session, Category, CategoryItem } from './types';
 import {
   loadSessions,
+  loadSessionsLocal,
   saveSession,
   deleteSession,
   createSession,
@@ -26,8 +27,8 @@ import { Auth } from './components/Auth';
 
 const App: React.FC = () => {
   // Use lazy initialization to load data synchronously before first render
-  // Initialize empty, then load
-  const [sessions, setSessions] = useState<Session[]>([]);
+  // Initialize with local data immediately
+  const [sessions, setSessions] = useState<Session[]>(() => loadSessionsLocal());
   const [categories, setCategories] = useState<CategoryItem[]>(() => loadCategories());
   const [theme, setTheme] = useState<'light' | 'dark'>(() => loadTheme());
   const [finishLoading, setFinishLoading] = useState(false);
@@ -41,7 +42,8 @@ const App: React.FC = () => {
 
   // Load initial data
   const [user, setUser] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  // Do not block initial render on auth/remote load
+  const [loading, setLoading] = useState(false);
 
   // Auth & Initial Data Load
   useEffect(() => {
@@ -62,14 +64,13 @@ const App: React.FC = () => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
       if (session?.user) {
+        // Sync remote data in background
         loadData().finally(() => clearTimeout(safetyTimeout));
       } else {
-        setLoading(false);
         clearTimeout(safetyTimeout);
       }
     }).catch(err => {
       console.error("Auth session check failed:", err);
-      setLoading(false);
       clearTimeout(safetyTimeout);
     });
 
@@ -87,10 +88,9 @@ const App: React.FC = () => {
   }, []);
 
   const loadData = async () => {
-    setLoading(true);
+    // Background sync
     const loaded = await loadSessions();
     setSessions(loaded);
-    setLoading(false);
     setFinishLoading(true);
   };
 
