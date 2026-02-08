@@ -89,7 +89,7 @@ const StatisticsModal: React.FC<StatisticsModalProps> = ({ isOpen, onClose, sess
       return sStart < end && sEnd > start;
     });
 
-    return { filteredSessions: filtered, periodLabel: label, start, end };
+    return { filteredSessions: filtered, periodLabel: label, periodStart: start, periodEnd: end };
   }, [sessions, range]);
 
   // Process Data for Charts
@@ -309,7 +309,7 @@ const StatisticsModal: React.FC<StatisticsModalProps> = ({ isOpen, onClose, sess
               </div>
 
               {/* Bar Chart Section (Week/Month/Year only) */}
-              {range !== 'day' && chartData.barData.length > 0 && (
+              {range !== 'day' && (
                 <div className="border-t border-border pt-6">
                   <h3 className="text-sm font-semibold text-textMain mb-6 text-center">Trend</h3>
                   <div className="px-2">
