@@ -15,6 +15,7 @@ export interface Session {
   end_time: string | null; // ISO string or null if active
   is_active: boolean;
   synced?: boolean; // Local state flag
+  created_at?: string;
 }
 
 export interface PulseState {
