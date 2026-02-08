@@ -21,7 +21,7 @@ import StatisticsModal from './components/StatisticsModal';
 import EditSessionModal from './components/EditSessionModal';
 import { Zap, Settings, BarChart2, Activity, RotateCcw } from 'lucide-react';
 import { AnimatePresence } from 'framer-motion';
-import { format, isSameDay, startOfDay, addHours, addMinutes } from 'date-fns';
+import { format, isSameDay, startOfDay, addHours, addMinutes, isBefore } from 'date-fns';
 import { supabase } from './services/supabaseClient';
 import { Auth } from './components/Auth';
 import { v4 as uuidv4 } from 'uuid';
@@ -145,9 +145,10 @@ const App: React.FC = () => {
   }, [sessions, selectedDate]);
 
   const handleStartSession = (categoryItem: CategoryItem) => {
-    const isToday = isSameDay(selectedDate, new Date());
+    // Check if selected date is strictly before today (start of day comparison)
+    const isPastDate = isBefore(startOfDay(selectedDate), startOfDay(new Date()));
 
-    if (!isToday) {
+    if (isPastDate) {
       // Past Date: Open Edit Modal with a draft session
       const draftStart = addHours(startOfDay(selectedDate), 12); // Noon
       const draftEnd = addMinutes(draftStart, 30); // 30 mins default
@@ -327,15 +328,14 @@ const App: React.FC = () => {
 
 
         <div className="flex gap-2">
-          {deletedSessions.length > 0 && (
-            <button
-              onClick={handleUndoDelete}
-              className="bg-surface hover:bg-surfaceHighlight border border-border text-textMain rounded-full p-2 transition-colors mr-1"
-              aria-label="Undo Delete"
-            >
-              <RotateCcw size={20} />
-            </button>
-          )}
+          <button
+            onClick={handleUndoDelete}
+            disabled={deletedSessions.length === 0}
+            className={`bg-surface hover:bg-surfaceHighlight border border-border text-textMain rounded-full p-2 transition-colors mr-1 ${deletedSessions.length === 0 ? 'opacity-30 cursor-not-allowed' : ''}`}
+            aria-label="Undo Delete"
+          >
+            <RotateCcw size={20} />
+          </button>
 
           <button
             onClick={() => setIsStatsOpen(true)}
