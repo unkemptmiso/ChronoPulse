@@ -91,7 +91,7 @@ const TimelineItem: React.FC<{
 
         <button
           onClick={() => onEdit(session)}
-          className="text-textMuted hover:text-textMain hover:bg-surfaceHighlight p-2 rounded-lg transition-all opacity-0 group-hover:opacity-100 focus:opacity-100"
+          className="text-textMuted hover:text-textMain hover:bg-surfaceHighlight p-2 rounded-lg transition-all focus:opacity-100"
           aria-label="Edit session"
         >
           <Edit2 size={16} />
@@ -99,7 +99,7 @@ const TimelineItem: React.FC<{
 
         <button
           onClick={() => onDelete(session.id)}
-          className="text-textMuted hover:text-danger p-2 rounded-lg transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 hover:bg-danger/10 dark:hover:text-red-400"
+          className="text-textMuted hover:text-danger p-2 rounded-lg transition-all focus:opacity-100 hover:bg-danger/10 dark:hover:text-red-400"
           aria-label="Delete session"
         >
           <Trash2 size={16} />

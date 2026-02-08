@@ -21,7 +21,7 @@ import StatisticsModal from './components/StatisticsModal';
 import EditSessionModal from './components/EditSessionModal';
 import { Zap, Settings, BarChart2, Activity } from 'lucide-react';
 import { AnimatePresence } from 'framer-motion';
-import { format, isSameDay } from 'date-fns';
+import { format, isSameDay, startOfDay } from 'date-fns';
 import { supabase } from './services/supabaseClient';
 import { Auth } from './components/Auth';
 
@@ -31,6 +31,7 @@ const App: React.FC = () => {
   const [sessions, setSessions] = useState<Session[]>(() => loadSessionsLocal());
   const [categories, setCategories] = useState<CategoryItem[]>(() => loadCategories());
   const [theme, setTheme] = useState<'light' | 'dark'>(() => loadTheme());
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [finishLoading, setFinishLoading] = useState(false);
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -115,15 +116,29 @@ const App: React.FC = () => {
   const activeSession = sessions.find(s => s.is_active);
 
   // Filter sessions for timeline (Today ONLY, or active)
+  // Filter sessions for timeline (Selected Date OR active)
   const timelineSessions = useMemo(() => {
-    const now = new Date();
     return sessions.filter(s => {
-      if (s.is_active) return true;
-      // If session ended, check if it ended today
+      // Always show active session if it's today (or if user selected today)
+      // Actually, typically active session is "now", so it belongs to today. 
+      // If user goes back in time, they probably want to see that day's logs.
+      // But if they have an active session, it might be confusing to hide it?
+      // Let's stick to: Show sessions that end on selected date.
+      // For active session: It effectively "ends" now (or hasn't ended). 
+      // If selectedDate is Today, show active. If selectedDate is past, hide active?
+      // User request: "go back and change the time for a particular activity in the past".
+      // So filtering by end time (completed sessions) is key.
+
+      const isToday = isSameDay(selectedDate, new Date());
+
+      if (s.is_active) {
+        return isToday;
+      }
+
       const end = new Date(s.end_time!);
-      return isSameDay(end, now);
+      return isSameDay(end, selectedDate);
     });
-  }, [sessions]);
+  }, [sessions, selectedDate]);
 
   const handleStartSession = (categoryItem: CategoryItem) => {
     const now = new Date().toISOString();
@@ -232,9 +247,28 @@ const App: React.FC = () => {
             <Zap className="text-textMain" size={20} />
             Chrono
           </h1>
-          <p className="text-textMuted text-xs mt-1 font-mono uppercase tracking-wider">
-            {format(new Date(), 'EEEE, MMMM d')}
-          </p>
+          <div className="relative mt-1">
+            <label htmlFor="date-picker" className="text-textMuted text-xs font-mono uppercase tracking-wider cursor-pointer hover:text-textMain transition-colors flex items-center gap-2">
+              {format(selectedDate, 'EEEE, MMMM d')}
+              {/* Hidden text/indicator for interaction if needed, but hover effect is enough */}
+            </label>
+            <input
+              id="date-picker"
+              type="date"
+              className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+              value={format(selectedDate, 'yyyy-MM-dd')}
+              onChange={(e) => {
+                if (e.target.valueAsDate) {
+                  // Correct for timezone offset if needed, but valueAsDate usually returns UTC midnight?
+                  // Actually valueAsDate returns a Date object. 
+                  // Browser date inputs can be tricky with timezones.
+                  // Let's use simple string parsing to avoid UTC shift issues.
+                  const [y, m, d] = e.target.value.split('-').map(Number);
+                  setSelectedDate(new Date(y, m - 1, d));
+                }
+              }}
+            />
+          </div>
         </div>
 
         <div className="flex gap-2">
