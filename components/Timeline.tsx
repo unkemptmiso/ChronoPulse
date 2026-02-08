@@ -3,6 +3,7 @@ import { Session } from '../types';
 import { format } from 'date-fns';
 import { Trash2, Edit2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { formatDuration } from '../utils';
 
 interface TimelineProps {
   sessions: Session[];
@@ -85,7 +86,7 @@ const TimelineItem: React.FC<{
       <div className="flex items-center gap-2 pl-4">
         {end && (
           <span className="text-xs font-mono text-textMuted bg-surfaceHighlight px-2 py-1 rounded-md mr-1">
-            {duration}m
+            {formatDuration(duration)}
           </span>
         )}
 

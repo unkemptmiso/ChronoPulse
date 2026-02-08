@@ -13,12 +13,7 @@ import {
 import { PieChart, StackedBarChart, ChartDataPoint, StackedBarDataPoint } from './Charts';
 import { intervalToDuration } from 'date-fns';
 
-const formatDuration = (totalMinutes: number) => {
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = Math.round(totalMinutes % 60);
-  if (hours === 0) return `${minutes}m`;
-  return `${hours}h ${minutes}m`;
-};
+import { formatDuration } from '../utils';
 
 
 interface StatisticsModalProps {

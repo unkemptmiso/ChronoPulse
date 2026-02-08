@@ -19,11 +19,12 @@ import Guardrail from './components/Guardrail';
 import SettingsModal from './components/SettingsModal';
 import StatisticsModal from './components/StatisticsModal';
 import EditSessionModal from './components/EditSessionModal';
-import { Zap, Settings, BarChart2, Activity } from 'lucide-react';
+import { Zap, Settings, BarChart2, Activity, RotateCcw } from 'lucide-react';
 import { AnimatePresence } from 'framer-motion';
-import { format, isSameDay, startOfDay } from 'date-fns';
+import { format, isSameDay, startOfDay, addHours, addMinutes } from 'date-fns';
 import { supabase } from './services/supabaseClient';
 import { Auth } from './components/Auth';
+import { v4 as uuidv4 } from 'uuid';
 
 const App: React.FC = () => {
   // Use lazy initialization to load data synchronously before first render
@@ -40,6 +41,9 @@ const App: React.FC = () => {
   // Edit Modal State
   const [editingSession, setEditingSession] = useState<Session | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+
+  // Undo State
+  const [deletedSessions, setDeletedSessions] = useState<Session[]>([]);
 
   // Load initial data
   const [user, setUser] = useState<any>(null);
@@ -141,6 +145,29 @@ const App: React.FC = () => {
   }, [sessions, selectedDate]);
 
   const handleStartSession = (categoryItem: CategoryItem) => {
+    const isToday = isSameDay(selectedDate, new Date());
+
+    if (!isToday) {
+      // Past Date: Open Edit Modal with a draft session
+      const draftStart = addHours(startOfDay(selectedDate), 12); // Noon
+      const draftEnd = addMinutes(draftStart, 30); // 30 mins default
+
+      const draftSession: Session = {
+        id: uuidv4(),
+        user_id: user?.id || 'local-user',
+        category: categoryItem.name,
+        start_time: draftStart.toISOString(),
+        end_time: draftEnd.toISOString(),
+        is_active: false,
+        created_at: new Date().toISOString()
+      };
+
+      setEditingSession(draftSession);
+      setIsEditModalOpen(true);
+      return;
+    }
+
+    // Normal behavior (Today)
     const now = new Date().toISOString();
     let updatedSessions = [...sessions];
 
@@ -185,13 +212,39 @@ const App: React.FC = () => {
   };
 
   const handleUpdateSession = (updatedSession: Session) => {
-    setSessions(prev => prev.map(s => s.id === updatedSession.id ? updatedSession : s));
+    // Check if it's a new session (not in state)
+    const exists = sessions.some(s => s.id === updatedSession.id);
+    if (exists) {
+      setSessions(prev => prev.map(s => s.id === updatedSession.id ? updatedSession : s));
+    } else {
+      setSessions(prev => [updatedSession, ...prev]);
+    }
     saveSession(updatedSession);
   };
 
   const handleDeleteSession = (id: string) => {
-    setSessions(prev => prev.filter(s => s.id !== id));
-    deleteSession(id);
+    const sessionToDelete = sessions.find(s => s.id === id);
+    if (sessionToDelete) {
+      setDeletedSessions(prev => [...prev, sessionToDelete]);
+      setSessions(prev => prev.filter(s => s.id !== id));
+      deleteSession(id);
+    }
+  };
+
+  const handleUndoDelete = () => {
+    if (deletedSessions.length === 0) return;
+
+    const lastDeleted = deletedSessions[deletedSessions.length - 1];
+    setDeletedSessions(prev => prev.slice(0, -1)); // Remove from stack
+
+    // Restore locally
+    setSessions(prev => {
+      const newSessions = [...prev, lastDeleted];
+      return newSessions.sort((a, b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime());
+    });
+
+    // Restore persistence
+    saveSession(lastDeleted);
   };
 
   const handleClearData = () => {
@@ -271,7 +324,19 @@ const App: React.FC = () => {
           </div>
         </div>
 
+
+
         <div className="flex gap-2">
+          {deletedSessions.length > 0 && (
+            <button
+              onClick={handleUndoDelete}
+              className="bg-surface hover:bg-surfaceHighlight border border-border text-textMain rounded-full p-2 transition-colors mr-1"
+              aria-label="Undo Delete"
+            >
+              <RotateCcw size={20} />
+            </button>
+          )}
+
           <button
             onClick={() => setIsStatsOpen(true)}
             className="bg-surface hover:bg-surfaceHighlight border border-border text-textMain rounded-full p-2 transition-colors"
@@ -288,7 +353,7 @@ const App: React.FC = () => {
             <Settings size={20} />
           </button>
         </div>
-      </header>
+      </header >
 
       <main className="p-4 max-w-md mx-auto space-y-8">
         <Guardrail sessions={sessions} />
@@ -349,7 +414,7 @@ const App: React.FC = () => {
         onSave={handleUpdateSession}
       />
 
-    </div>
+    </div >
   );
 };
 
